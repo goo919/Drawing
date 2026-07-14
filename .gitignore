@@ -1,0 +1,3 @@
+# 개인 Firebase 설정 (firebase-config.example.js 를 복사해서 생성)
+firebase-config.js
+node_modules/

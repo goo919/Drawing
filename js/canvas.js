@@ -70,9 +70,9 @@ const DrawingCanvas = (() => {
     updateButtons();
   }
 
-  function clearAll() {
+  async function clearAll() {
     if (!hasDrawn) return;
-    if (!confirm("정말 전부 지울까요?")) return;
+    if (!(await UI.confirm("정말 전부 지울까요?"))) return;
     pushUndo();
     ctx.clearRect(0, 0, SIZE, SIZE);
     updateButtons();
@@ -118,7 +118,12 @@ const DrawingCanvas = (() => {
         updateButtons();
       }
       const pts = [...pointers.values()];
-      pinchStart = { dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y), zoom };
+      pinchStart = {
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+        zoom,
+        cx: (pts[0].x + pts[1].x) / 2,
+        cy: (pts[0].y + pts[1].y) / 2,
+      };
       return;
     }
     if (pointers.size > 2) return;
@@ -139,6 +144,13 @@ const DrawingCanvas = (() => {
       const pts = [...pointers.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       setZoom(pinchStart.zoom * (dist / pinchStart.dist));
+      // 두 손가락 이동으로 화면 이동(팬)
+      const cx = (pts[0].x + pts[1].x) / 2;
+      const cy = (pts[0].y + pts[1].y) / 2;
+      viewport.scrollLeft += pinchStart.cx - cx;
+      viewport.scrollTop += pinchStart.cy - cy;
+      pinchStart.cx = cx;
+      pinchStart.cy = cy;
       return;
     }
     if (!drawing) return;

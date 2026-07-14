@@ -23,7 +23,7 @@ const Dogam = (() => {
       if (!list.length) {
         const empty = document.createElement("p");
         empty.className = "dogam-empty";
-        empty.textContent = "아직 도감에 등록된 동물이 없어요 📖";
+        empty.textContent = "아직 도감에 등록된 동물이 없어요";
         grid.appendChild(empty);
         return;
       }
@@ -45,7 +45,7 @@ const Dogam = (() => {
               <span class="author-chip ${d.user === "A" ? "chip-a" : "chip-b"}">${escapeHtml(who)}${mine ? " (나)" : ""}</span>
               <span class="dogam-date">${d.date}</span>
             </div>
-            ${revealed ? "" : '<div class="dogam-wait">🔒 상대방 제출 전 (나만 보여요)</div>'}
+            ${revealed ? "" : '<div class="dogam-wait">상대방 제출 전 · 나만 보여요</div>'}
           </div>`;
         card.addEventListener("click", () => App.openDrawingModal(d));
         grid.appendChild(card);

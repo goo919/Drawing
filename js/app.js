@@ -73,11 +73,11 @@ const App = (() => {
     status.innerHTML = `
       <div class="status-card ${mine ? "done" : ""}">
         <span class="status-name">${escapeHtml(displayName(state.me))} (나)</span>
-        <span class="status-text">${mine ? "제출 완료 ✅" : "아직 안 그렸어요 🖌️"}</span>
+        <span class="status-text">${mine ? "제출 완료" : "아직 안 그렸어요"}</span>
       </div>
       <div class="status-card ${theirs ? "done" : ""}">
         <span class="status-name">${escapeHtml(displayName(partner))}</span>
-        <span class="status-text">${theirs ? (mine ? "제출 완료 ✅" : "먼저 제출했어요! 🤫") : "아직 그리는 중… 💭"}</span>
+        <span class="status-text">${theirs ? (mine ? "제출 완료" : "먼저 제출했어요!") : "아직 그리는 중…"}</span>
       </div>`;
 
     const drawArea = document.getElementById("draw-area");
@@ -93,7 +93,7 @@ const App = (() => {
 
       if (mine && theirs) {
         donePanel.innerHTML = `
-          <h3 class="reveal-title">🎉 오늘의 그림이 공개됐어요!</h3>
+          <h3 class="reveal-title">오늘의 그림이 공개됐어요!</h3>
           <div class="reveal-pair">
             ${[mine, theirs]
               .map(
@@ -105,7 +105,7 @@ const App = (() => {
               )
               .join("")}
           </div>
-          <p class="hint">수족관에서 헤엄치는 모습을 확인해보세요 🐠</p>`;
+          <p class="hint">수족관에서 헤엄치는 모습을 확인해보세요</p>`;
         donePanel.querySelectorAll(".reveal-item").forEach((el) => {
           el.addEventListener("click", () => {
             const d = state.drawings.find((x) => x.id === el.dataset.id);
@@ -114,9 +114,9 @@ const App = (() => {
         });
       } else {
         donePanel.innerHTML = `
-          <h3 class="reveal-title">오늘의 그림 완료! 🌙</h3>
+          <h3 class="reveal-title">오늘의 그림 완료!</h3>
           <p class="hint">${escapeHtml(displayName(partner))}님이 제출하면 두 그림이 동시에 공개돼요.<br>내일 자정에 새로운 주제가 도착합니다.</p>
-          <button type="button" class="btn ghost" id="btn-view-mine">내 그림 미리 보기 👀</button>`;
+          <button type="button" class="btn ghost" id="btn-view-mine">내 그림 미리 보기</button>`;
         document.getElementById("btn-view-mine").addEventListener("click", () => openDrawingModal(mine));
       }
     }
@@ -124,10 +124,10 @@ const App = (() => {
 
   async function submitDrawing() {
     if (DrawingCanvas.isEmpty()) {
-      alert("아직 아무것도 안 그렸어요! 🖌️");
+      UI.toast("아직 아무것도 안 그렸어요!");
       return;
     }
-    if (!confirm("이대로 제출할까요? 제출 후에는 수정할 수 없어요!")) return;
+    if (!(await UI.confirm("이대로 제출할까요? 제출 후에는 수정할 수 없어요!"))) return;
 
     const btn = document.getElementById("btn-submit");
     btn.disabled = true;
@@ -143,11 +143,13 @@ const App = (() => {
       });
       DrawingCanvas.reset();
       await refresh();
+      window.scrollTo({ top: 0 });
+      UI.toast("제출 완료! 오늘의 그림이 저장됐어요.");
     } catch (e) {
-      alert(e.message || "저장에 실패했어요. 다시 시도해주세요.");
+      UI.toast(e.message || "저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       btn.disabled = false;
-      btn.textContent = "완료! 수족관에 풀어주기 🐟";
+      btn.textContent = "완료! 수족관에 풀어주기";
     }
   }
 
@@ -213,6 +215,7 @@ const App = (() => {
     else Aquarium.stop();
     if (tab === "dogam") renderDogam();
     if (tab === "today") renderToday();
+    window.scrollTo({ top: 0 });
   }
 
   // ---------- 프로필 ----------
@@ -241,13 +244,13 @@ const App = (() => {
   function updateHeader() {
     const chip = document.getElementById("me-chip");
     if (state.me) {
-      chip.textContent = `${displayName(state.me)} (나) 🐚`;
+      chip.textContent = `${displayName(state.me)} (나)`;
       chip.hidden = false;
     } else {
       chip.hidden = true;
     }
     const badge = document.getElementById("mode-badge");
-    badge.textContent = Storage.mode === "firebase" ? "☁️ 공유 모드" : "💾 로컬 모드";
+    badge.textContent = Storage.mode === "firebase" ? "공유 모드" : "로컬 모드";
     badge.title =
       Storage.mode === "firebase"
         ? "Firebase에 연결되어 두 사람이 같은 수족관을 봅니다."

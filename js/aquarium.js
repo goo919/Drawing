@@ -90,7 +90,7 @@ const Aquarium = (() => {
       if (!drawings.length) {
         const empty = document.createElement("div");
         empty.className = "tank-empty";
-        empty.textContent = "아직 수족관이 비어 있어요. 둘 다 그림을 제출하면 여기에 나타나요! 🐠";
+        empty.textContent = "아직 수족관이 비어 있어요. 둘 다 그림을 제출하면 여기에 나타나요!";
         tank.appendChild(empty);
       } else {
         drawings.forEach(addFish);

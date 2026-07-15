@@ -1,12 +1,22 @@
 // 앱 메인 로직: 오늘의 주제, 비공개 규칙, 탭 전환, 프로필, 모달
 
 const App = (() => {
-  const ME_KEY = "aquarium_me_v1";
+  const AUTH_KEY = "aquarium_login_v1"; // 자동 로그인용 { user, hash }
   const TOPIC_EPOCH = new Date(2026, 0, 1); // 이 날짜 기준으로 주제가 순서대로 순환
 
+  // 두 사람 고정 계정: 아이디로 누구인지 판별
+  const USERS = { A: "자성", B: "지수" };
+
+  function idToUser(input) {
+    const s = (input || "").trim().toLowerCase();
+    if (s.startsWith("자성") || s === "jaseong") return "A";
+    if (s.startsWith("지수") || s === "jisu") return "B";
+    return null;
+  }
+
   const state = {
-    me: null, // 'A' | 'B'
-    names: { A: "A", B: "B" },
+    me: null, // 'A'(자성) | 'B'(지수)
+    names: { ...USERS },
     drawings: [],
     tab: "today",
     dogamSort: "newest",
@@ -270,27 +280,93 @@ const App = (() => {
     window.scrollTo({ top: 0 });
   }
 
-  // ---------- 프로필 ----------
-  function showProfilePicker() {
-    const overlay = document.getElementById("profile-overlay");
-    overlay.hidden = false;
-    document.getElementById("name-a").value = state.names.A === "A" ? "" : state.names.A;
-    document.getElementById("name-b").value = state.names.B === "B" ? "" : state.names.B;
+  // ---------- 로그인 ----------
+  async function hashPw(user, pw) {
+    const text = "aquarium:" + user + ":" + pw;
+    if (crypto?.subtle) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    // 보안 컨텍스트가 아닐 때의 간단한 대체 해시
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+    return "djb2_" + h.toString(16);
+  }
 
-    overlay.querySelectorAll(".profile-card").forEach((btn) => {
-      btn.onclick = async () => {
-        const user = btn.dataset.user;
-        const input = document.getElementById(user === "A" ? "name-a" : "name-b");
-        const name = input.value.trim() || (user === "A" ? "A" : "B");
-        state.me = user;
-        localStorage.setItem(ME_KEY, user);
-        await Storage.setProfileName(user, name);
-        state.names[user] = name;
-        overlay.hidden = true;
-        updateHeader();
-        await refresh();
-      };
-    });
+  function showLogin() {
+    state.me = null;
+    updateHeader();
+    document.getElementById("login-overlay").hidden = false;
+    document.getElementById("login-error").hidden = true;
+    document.getElementById("login-pw").value = "";
+  }
+
+  function loginError(msg) {
+    const el = document.getElementById("login-error");
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const user = idToUser(document.getElementById("login-id").value);
+    const pw = document.getElementById("login-pw").value;
+    if (!user) {
+      loginError("아이디는 '자성' 또는 '지수'만 쓸 수 있어요");
+      return;
+    }
+    if (pw.length < 2) {
+      loginError("비밀번호를 2자 이상 입력해주세요");
+      return;
+    }
+    const btn = document.querySelector(".login-btn");
+    btn.disabled = true;
+    try {
+      const hash = await hashPw(user, pw);
+      const auth = await Storage.getAuth();
+      if (!auth[user]) {
+        await Storage.setAuthHash(user, hash); // 첫 로그인 → 이 비밀번호로 등록
+      } else if (auth[user] !== hash) {
+        loginError("비밀번호가 맞지 않아요");
+        return;
+      }
+      if (document.getElementById("login-auto").checked) {
+        localStorage.setItem(AUTH_KEY, JSON.stringify({ user, hash }));
+      } else {
+        localStorage.removeItem(AUTH_KEY);
+      }
+      state.me = user;
+      Storage.setProfileName(user, USERS[user]);
+      document.getElementById("login-overlay").hidden = true;
+      UI.toast(`${USERS[user]}님, 어서 오세요!`);
+      await refresh();
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // 저장된 로그인으로 자동 입장
+  async function tryAutoLogin() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(AUTH_KEY));
+    } catch {}
+    if (!saved || !saved.user || !saved.hash) return false;
+    const auth = await Storage.getAuth();
+    if (!auth[saved.user]) {
+      await Storage.setAuthHash(saved.user, saved.hash); // 공유 저장소에 아직 없으면 등록
+    } else if (auth[saved.user] !== saved.hash) {
+      localStorage.removeItem(AUTH_KEY); // 비밀번호가 바뀌었으면 다시 로그인
+      return false;
+    }
+    state.me = saved.user;
+    return true;
+  }
+
+  async function logout() {
+    if (!(await UI.confirm("로그아웃할까요?"))) return;
+    localStorage.removeItem(AUTH_KEY);
+    showLogin();
   }
 
   function updateHeader() {
@@ -312,8 +388,7 @@ const App = (() => {
   // ---------- 데이터 새로고침 ----------
   async function refresh() {
     state.drawings = await Storage.listDrawings();
-    const profiles = await Storage.getProfiles();
-    state.names = { A: profiles.A || "A", B: profiles.B || "B" };
+    state.names = { ...USERS };
     updateHeader();
     switchTab(state.tab); // 현재 탭 다시 그리기
   }
@@ -365,7 +440,8 @@ const App = (() => {
       state.dogamWho = e.target.value;
       renderDogam();
     });
-    document.getElementById("btn-switch-user").addEventListener("click", showProfilePicker);
+    document.getElementById("btn-switch-user").addEventListener("click", logout);
+    document.getElementById("login-form").addEventListener("submit", handleLogin);
 
     Storage.onChange(() => refresh());
 
@@ -380,9 +456,9 @@ const App = (() => {
       }
     }, 30 * 1000);
 
-    state.me = localStorage.getItem(ME_KEY);
+    const loggedIn = await tryAutoLogin();
     await refresh();
-    if (!state.me) showProfilePicker();
+    if (!loggedIn) showLogin();
   }
 
   document.addEventListener("DOMContentLoaded", init);

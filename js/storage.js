@@ -108,6 +108,29 @@ const Storage = (() => {
       return localProfiles();
     },
 
+    // 로그인 정보 { A: 해시, B: 해시 } — 첫 로그인 때 등록됨
+    async getAuth() {
+      if (mode === "firebase") {
+        const snap = await fs.getDoc(fs.doc(db, "meta", "auth"));
+        return snap.exists() ? snap.data() : {};
+      }
+      try {
+        return JSON.parse(localStorage.getItem("aquarium_auth_db")) || {};
+      } catch {
+        return {};
+      }
+    },
+
+    async setAuthHash(user, hash) {
+      if (mode === "firebase") {
+        await fs.setDoc(fs.doc(db, "meta", "auth"), { [user]: hash }, { merge: true });
+        return;
+      }
+      const a = await this.getAuth();
+      a[user] = hash;
+      localStorage.setItem("aquarium_auth_db", JSON.stringify(a));
+    },
+
     async setProfileName(user, name) {
       if (mode === "firebase") {
         await fs.setDoc(fs.doc(db, "meta", "profiles"), { [user]: name }, { merge: true });

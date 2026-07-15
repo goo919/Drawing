@@ -173,6 +173,21 @@ const DrawingCanvas = (() => {
     drawing = false;
   }
 
+  function flipHorizontal() {
+    if (!hasDrawn) return;
+    pushUndo();
+    const tmp = document.createElement("canvas");
+    tmp.width = tmp.height = SIZE;
+    tmp.getContext("2d").drawImage(canvas, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.translate(SIZE, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
+  }
+
   function updateButtons() {
     const undoBtn = document.getElementById("btn-undo");
     if (undoBtn) undoBtn.disabled = undoStack.length === 0;
@@ -233,6 +248,7 @@ const DrawingCanvas = (() => {
       document.getElementById("btn-zoom-out").addEventListener("click", () => setZoom(zoom - 0.25));
       document.getElementById("btn-undo").addEventListener("click", undo);
       document.getElementById("btn-clear").addEventListener("click", clearAll);
+      document.getElementById("btn-flip").addEventListener("click", flipHorizontal);
 
       const brush = document.getElementById("brush-size");
       const brushLabel = document.getElementById("brush-label");

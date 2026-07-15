@@ -41,7 +41,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 /* ================= 연필 테두리 공통 레이어 ================= */
 .topic-card, .status-card, .toolbar, .done-panel, .dogam-card, .reveal-item,
-.modal-box, .ui-confirm-box, .profile-card, .btn, .tool-btn, .canvas-frame {
+.modal-box, .ui-confirm-box, .btn, .tool-btn, .canvas-frame {
   position: relative;
   isolation: isolate;
   border: none;
@@ -50,7 +50,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 .topic-card::before, .status-card::before, .toolbar::before, .done-panel::before,
 .dogam-card::before, .reveal-item::before, .modal-box::before, .ui-confirm-box::before,
-.profile-card::before, .btn::before, .tool-btn::before, .canvas-frame::before {
+.btn::before, .tool-btn::before, .canvas-frame::before {
   content: "";
   position: absolute;
   inset: 1px;
@@ -599,31 +599,48 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .modal-topic { margin-top: 12px; font-size: 1.1rem; font-weight: 800; text-wrap: balance; }
 .modal-meta { color: var(--muted); margin-top: 2px; font-size: 0.85rem; }
 
-/* ================= 프로필 선택 ================= */
-.profile-box h2 { font-size: 1.3rem; font-weight: 800; }
+/* ================= 로그인 ================= */
+.login-box h2 { font-size: 1.3rem; font-weight: 800; }
 
-.profile-row { display: flex; gap: 10px; margin-top: 14px; }
+#login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
 
-.profile-col { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-
-.profile-col input {
+#login-form input[type="text"],
+#login-form input[type="password"] {
   border: 1.5px solid var(--ink);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
-.profile-card {
-  padding: 18px 8px;
-  font-size: 1.05rem;
-  font-weight: 800;
+.auto-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
 }
-.profile-card::before { box-shadow: var(--lift); }
-.profile-card:active { transform: translate(2px, 2px); }
-.profile-card:active::before { box-shadow: none; }
-.card-a { color: var(--paper); }
-.card-a::before { background: var(--ink); }
+.auto-login input { accent-color: var(--ink); width: 16px; height: 16px; }
+
+.login-btn { width: 100%; }
+
+.login-error {
+  margin-top: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--faint);
+  border: 1.5px dashed var(--ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
 
 /* ================= 확인 모달 / 토스트 ================= */
 .ui-confirm {

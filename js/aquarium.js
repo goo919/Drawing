@@ -50,13 +50,73 @@ const Aquarium = (() => {
     }
   }
 
+  // ---------- 그려진 영역만 잘라내기 (클릭 범위 = 그림의 실제 경계) ----------
+  const cropCache = new Map();
+
+  function loadImg(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function croppedImage(drawing) {
+    const key = drawing.id + ":" + (drawing.submittedAt || 0);
+    if (cropCache.has(key)) return cropCache.get(key);
+    let result;
+    try {
+      const img = await loadImg(drawing.image);
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const cx = c.getContext("2d");
+      cx.drawImage(img, 0, 0);
+      const data = cx.getImageData(0, 0, c.width, c.height).data;
+      let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
+      for (let y = 0; y < c.height; y++) {
+        for (let x = 0; x < c.width; x++) {
+          if (data[(y * c.width + x) * 4 + 3] > 10) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) {
+        result = { src: drawing.image, ratio: 1 };
+      } else {
+        const pad = 4;
+        minX = Math.max(0, minX - pad);
+        minY = Math.max(0, minY - pad);
+        maxX = Math.min(c.width - 1, maxX + pad);
+        maxY = Math.min(c.height - 1, maxY + pad);
+        const w = maxX - minX + 1;
+        const h = maxY - minY + 1;
+        const out = document.createElement("canvas");
+        out.width = w;
+        out.height = h;
+        out.getContext("2d").drawImage(c, minX, minY, w, h, 0, 0, w, h);
+        result = { src: out.toDataURL("image/png"), ratio: h / w };
+      }
+    } catch {
+      result = { src: drawing.image, ratio: 1 };
+    }
+    cropCache.set(key, result);
+    return result;
+  }
+
   // ---------- 배우(그림) 생성 ----------
-  function addActor(drawing) {
+  async function addActor(drawing) {
     const type = SIZES[drawing.type] ? drawing.type : "swim";
+    const cropped = await croppedImage(drawing);
+
     const el = document.createElement("div");
     el.className = `fish fish-${type}`;
     const img = document.createElement("img");
-    img.src = drawing.image;
+    img.src = cropped.src;
     img.alt = drawing.topic;
     img.draggable = false;
     el.appendChild(img);
@@ -64,14 +124,21 @@ const Aquarium = (() => {
     el.addEventListener("click", () => App.openDrawingModal(drawing));
     tank.appendChild(el);
 
-    let size = rand(...SIZES[type]);
+    let size = rand(...SIZES[type]); // 가로 폭
     if (type === "giant") size = Math.min(size, W * 0.65);
+    // 그림 비율이 극단적이어도 화면에서 적당한 크기가 되도록 보정
+    let h = size * cropped.ratio;
+    const maxH = type === "giant" ? H * 0.6 : H * 0.4;
+    if (h > maxH) {
+      size *= maxH / h;
+      h = maxH;
+    }
     el.style.width = size + "px";
 
     const a = {
-      el, type, size,
+      el, type, size, h,
       x: rand(0, Math.max(1, W - size)),
-      baseY: rand(20, Math.max(21, floorY - size - 30)),
+      baseY: rand(20, Math.max(21, floorY - h - 30)),
       vx: rand(16, 40) * (Math.random() < 0.5 ? -1 : 1),
       cvx: 0, cvy: 0,
       chaseSp: rand(35, 62),
@@ -88,7 +155,7 @@ const Aquarium = (() => {
     // 유형별 초기 배치
     if (type === "walker" || type === "crawler" || type === "reef" || type === "plant") {
       a.footY = floorY + rand(6, Math.max(8, H - floorY - 10)); // 발이 닿는 모랫바닥 위치
-      a.baseY = a.footY - size;
+      a.baseY = a.footY - h;
       a.vx = type === "walker" ? rand(8, 15) * (Math.random() < 0.5 ? -1 : 1)
            : type === "crawler" ? rand(2, 5) * (Math.random() < 0.5 ? -1 : 1)
            : 0;
@@ -101,7 +168,7 @@ const Aquarium = (() => {
       a.vx = rand(4, 9) * (Math.random() < 0.5 ? -1 : 1);
     } else if (type === "giant") {
       a.vx = rand(5, 9) * (Math.random() < 0.5 ? -1 : 1);
-      a.baseY = rand(10, Math.max(11, H * 0.55 - size / 2));
+      a.baseY = rand(10, Math.max(11, H * 0.55 - h / 2));
       a.bobAmp = rand(4, 9);
       a.bobSpeed = rand(0.15, 0.3);
     } else if (type === "surface") {
@@ -147,7 +214,7 @@ const Aquarium = (() => {
     // 실제로 화면에 그려지는 위치(위아래 흔들림 포함) 기준으로 판정
     const yNow = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
     const cx = a.x + a.size / 2;
-    const cy = yNow + a.size / 2;
+    const cy = yNow + a.h / 2;
     const foodFilter = isSurface ? (f) => f.y < H * 0.4 : null;
 
     if (a.state === "roam") {
@@ -189,7 +256,7 @@ const Aquarium = (() => {
         a.x += a.cvx * dt;
         a.baseY += a.cvy * dt;
         a.flip = a.cvx < 0 ? -1 : 1;
-        if (d < Math.max(9, a.size * 0.18)) {
+        if (d < Math.max(9, Math.min(a.size, a.h) * 0.2)) {
           // 입이 닿을 만큼 가까워졌을 때만 냠
           removeFood(food);
           a.target = null;
@@ -208,7 +275,7 @@ const Aquarium = (() => {
     }
 
     // 영역 제한
-    const maxY = isSurface ? H * 0.16 : floorY - a.size * 0.55;
+    const maxY = isSurface ? H * 0.16 : floorY - a.h * 0.55;
     a.baseY = Math.max(4, Math.min(maxY, a.baseY));
     bounce(a);
     const y = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
@@ -237,13 +304,13 @@ const Aquarium = (() => {
       } else if (t > a.nextSwim) {
         // 가끔은 헤엄치고 싶다
         a.state = "swimup";
-        a.swimTarget = { x: rand(20, W - a.size - 20), y: rand(H * 0.2, floorY - a.size * 1.3) };
+        a.swimTarget = { x: rand(20, W - a.size - 20), y: rand(H * 0.2, floorY - a.h * 1.3) };
         a.stateUntil = t + rand(5000, 9000);
       }
       a.x += a.vx * dt;
       a.flip = a.vx < 0 ? -1 : 1;
       bounce(a);
-      const y = a.footY - a.size + Math.sin(t / 320 + a.phase) * 1.5; // 뒤뚱뒤뚱
+      const y = a.footY - a.h + Math.sin(t / 320 + a.phase) * 1.5; // 뒤뚱뒤뚱
       a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
     } else if (a.state === "swimup") {
       const done = ease2D(a, a.swimTarget.x, a.swimTarget.y, 22, dt);
@@ -252,7 +319,7 @@ const Aquarium = (() => {
       }
       renderEase(a, t);
     } else if (a.state === "swimdown") {
-      const done = ease2D(a, a.x, a.footY - a.size, 26, dt);
+      const done = ease2D(a, a.x, a.footY - a.h, 26, dt);
       if (done) {
         a.state = "walk";
         a.nextSwim = t + rand(18000, 45000);
@@ -284,18 +351,18 @@ const Aquarium = (() => {
       }
       bounce(a);
     }
-    const y = a.footY - a.size;
+    const y = a.footY - a.h;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
   }
 
   function stepPlant(a, t) {
     const sway = Math.sin((t / 1000) * 0.8 + a.phase) * 3.5;
     a.el.style.transformOrigin = "bottom center";
-    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.size}px) rotate(${sway}deg)`;
+    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.h}px) rotate(${sway}deg)`;
   }
 
   function stepReef(a) {
-    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.size}px)`;
+    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.h}px)`;
   }
 
   function stepGiant(a, t, dt) {

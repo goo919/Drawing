@@ -15,25 +15,40 @@
   --nav-h: 60px;
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; height: 100%; }
 
+/* 앱 전체를 화면에 고정: 페이지 스크롤/확대 불가 (캔버스만 자체 줌 지원) */
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic",
     "Noto Sans KR", "Segoe UI", sans-serif;
   background: var(--paper);
   color: var(--ink);
-  min-height: 100vh;
   font-size: 16px;
   line-height: 1.5;
-  overscroll-behavior-y: none;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  display: flex;
+  flex-direction: column;
 }
 
-body.modal-open { overflow: hidden; }
-
 main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  padding: 12px 14px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom));
+  padding: 10px 14px calc(var(--nav-h) + 10px + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+.tab-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 button { font-family: inherit; cursor: pointer; color: var(--ink); }
@@ -301,16 +316,29 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 }
 
 /* ================= 캔버스 ================= */
-.canvas-frame { padding: 4px; }
+#draw-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-frame {
+  padding: 4px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .canvas-frame::before { background: var(--faint); box-shadow: var(--lift); }
 
 .canvas-viewport {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  max-height: 68vh;
   padding: 6px;
   display: grid;
   place-items: start center;
-  touch-action: none; /* 그리는 동안 페이지가 움직이지 않도록 */
+  touch-action: none; /* 그리는 동안 페이지가 움직이지 않도록 (줌은 자체 처리) */
   overscroll-behavior: contain;
 }
 
@@ -323,8 +351,13 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   display: block;
 }
 
-.submit-btn { margin-top: 12px; width: 100%; }
+.submit-btn { margin-top: 10px; width: 100%; flex: none; }
 #btn-cancel-edit { margin-top: 8px; }
+
+/* 화면이 낮으면 안내 문구를 줄여서 캔버스 공간 확보 */
+@media (max-height: 740px) {
+  #draw-area > .hint { display: none; }
+}
 
 .btn {
   padding: 12px 20px;
@@ -347,6 +380,8 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   padding: 22px 16px;
   text-align: center;
   transform: rotate(-0.3deg);
+  overflow-y: auto;
+  min-height: 0;
 }
 .done-panel::before { box-shadow: var(--lift); }
 
@@ -395,8 +430,8 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .tank {
   position: relative;
   isolation: isolate;
-  height: calc(100vh - var(--nav-h) - 165px);
-  min-height: 430px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: var(--paper);
   border-radius: 9px;
@@ -492,10 +527,18 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 }
 
 /* ================= 도감 ================= */
+/* 카드가 쌓이는 곳이라 그리드 안쪽만 세로 스크롤 (페이지는 고정) */
 .dogam-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  align-content: start;
+  padding: 2px 2px 12px;
 }
 
 .dogam-card {
@@ -692,5 +735,4 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   body { font-size: 17px; }
   .app-title { font-size: 1.2rem; }
   .dogam-grid { grid-template-columns: repeat(3, 1fr); }
-  .tank { height: 640px; }
 }

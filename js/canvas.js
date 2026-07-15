@@ -44,6 +44,7 @@ const DrawingCanvas = (() => {
   let undoStack = [];
   let pointers = new Map(); // 핀치 감지용
   let pinchStart = null;
+  let userZoomed = false; // 사용자가 줌을 직접 조작했는지
 
   function currentColor() {
     return PALETTES[paletteName][colorIndex].color;
@@ -128,6 +129,7 @@ const DrawingCanvas = (() => {
         updateButtons();
       }
       const pts = [...pointers.values()];
+      userZoomed = true;
       pinchStart = {
         dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
         zoom,
@@ -221,9 +223,20 @@ const DrawingCanvas = (() => {
       canvas.height = SIZE;
       ctx = canvas.getContext("2d");
 
-      // 모바일에서 화면 폭에 맞게 시작
-      const fit = Math.min(1, (viewport.clientWidth - 16) / SIZE);
-      setZoom(fit || 1);
+      // 캔버스가 창 칸(가로·세로)에 꼭 맞게 시작
+      const fitToViewport = () => {
+        const fit = Math.min(
+          1,
+          (viewport.clientWidth - 16) / SIZE,
+          (viewport.clientHeight - 16) / SIZE
+        );
+        setZoom(fit > 0 ? fit : 1);
+      };
+      fitToViewport();
+      window.addEventListener("resize", () => {
+        // 사용자가 직접 줌을 만지기 전이라면 화면 크기에 계속 맞춤
+        if (!userZoomed) fitToViewport();
+      });
 
       canvas.addEventListener("pointerdown", onPointerDown);
       canvas.addEventListener("pointermove", onPointerMove);
@@ -235,6 +248,7 @@ const DrawingCanvas = (() => {
         "wheel",
         (e) => {
           e.preventDefault();
+          userZoomed = true;
           const rect = viewport.getBoundingClientRect();
           setZoom(zoom * (e.deltaY < 0 ? 1.1 : 0.9), {
             x: e.clientX - rect.left,
@@ -244,8 +258,14 @@ const DrawingCanvas = (() => {
         { passive: false }
       );
 
-      document.getElementById("btn-zoom-in").addEventListener("click", () => setZoom(zoom + 0.25));
-      document.getElementById("btn-zoom-out").addEventListener("click", () => setZoom(zoom - 0.25));
+      document.getElementById("btn-zoom-in").addEventListener("click", () => {
+        userZoomed = true;
+        setZoom(zoom + 0.25);
+      });
+      document.getElementById("btn-zoom-out").addEventListener("click", () => {
+        userZoomed = true;
+        setZoom(zoom - 0.25);
+      });
       document.getElementById("btn-undo").addEventListener("click", undo);
       document.getElementById("btn-clear").addEventListener("click", clearAll);
       document.getElementById("btn-flip").addEventListener("click", flipHorizontal);

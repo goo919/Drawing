@@ -443,6 +443,19 @@ const App = (() => {
     document.getElementById("btn-switch-user").addEventListener("click", logout);
     document.getElementById("login-form").addEventListener("submit", handleLogin);
 
+    // 페이지 자체의 확대/축소 차단 (캔버스 칸만 자체 줌 지원)
+    document.addEventListener("gesturestart", (e) => e.preventDefault()); // iOS 핀치
+    document.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.ctrlKey && !e.target.closest("#canvas-viewport")) e.preventDefault();
+      },
+      { passive: false }
+    );
+    document.addEventListener("dblclick", (e) => {
+      if (!e.target.closest("#canvas-viewport")) e.preventDefault(); // 더블탭 줌 방지
+    });
+
     Storage.onChange(() => refresh());
 
     // 자정이 지나면 자동으로 새 주제로 전환

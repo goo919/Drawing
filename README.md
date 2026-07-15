@@ -84,6 +84,41 @@ service cloud.firestore {
 > 두 사람만 아는 URL로 운영하는 소규모 앱 기준의 단순한 규칙입니다.
 > 더 잠그고 싶다면 Firebase 익명 인증 + 규칙 강화를 추가하면 됩니다.
 
+## 카카오톡 아침 알림 (선택)
+
+매일 자정(00:05 KST)에 두 사람의 카카오톡 **"나와의 채팅"** 으로
+"오늘의 주제 도착" 메시지가 갑니다. GitHub Actions(`kakao-notify.yml`)가 보내며,
+시크릿이 설정되지 않으면 조용히 건너뛰므로 안 써도 무방합니다.
+
+### 설정 (약 10분, 한 번만)
+
+1. [카카오 개발자](https://developers.kakao.com) → 애플리케이션 추가 → **REST API 키** 복사
+2. 앱 설정에서:
+   - **카카오 로그인 활성화** + Redirect URI에 `https://goo919.github.io/Drawing/` 등록
+   - **동의항목**에서 "카카오톡 메시지 전송(talk_message)" 을 "선택 동의"로 설정
+   - **팀원 관리**에 지수의 카카오 계정 초대 (개발 중 앱은 팀원만 로그인 가능)
+3. **각자** 자기 카카오 계정으로 아래 URL을 브라우저에서 열어 동의 → 주소창에 붙는 `code=...` 값 복사
+   ```
+   https://kauth.kakao.com/oauth/authorize?client_id=REST키&redirect_uri=https://goo919.github.io/Drawing/&response_type=code&scope=talk_message
+   ```
+4. 받은 code로 토큰 발급 (10분 안에, code는 1회용):
+   ```bash
+   curl -X POST https://kauth.kakao.com/oauth/token \
+     -d grant_type=authorization_code \
+     -d client_id=REST키 \
+     -d redirect_uri=https://goo919.github.io/Drawing/ \
+     -d code=아까받은code
+   ```
+   응답의 **`refresh_token`** 값을 보관 (각자 1개씩, 총 2개)
+5. GitHub 저장소 → Settings → Secrets and variables → Actions 에 등록:
+   - `KAKAO_REST_KEY` = REST API 키
+   - `KAKAO_REFRESH_A` = 자성의 refresh_token
+   - `KAKAO_REFRESH_B` = 지수의 refresh_token
+6. Actions 탭 → "KakaoTalk daily reminder" → Run workflow 로 즉시 테스트
+
+> refresh token은 사용 중이면 자동 연장되지만, 두 달 이상 워크플로가 실패하면
+> 3~5번을 다시 하면 됩니다. 알림은 각자 자신의 "나와의 채팅"방으로 도착합니다.
+
 ## 왜 Firebase(옵션 A)를 추천하나요?
 
 | | 옵션 A: Firebase | 옵션 B: Node.js + Express 직접 구축 |

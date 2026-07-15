@@ -1,12 +1,14 @@
 // 캔버스 드로잉 도구
-// - 기본 8색 / 파스텔 8색 토글
-// - 브러시 굵기 슬라이더, 지우개
-// - 줌 (버튼 / 마우스 휠 / 두 손가락 핀치)
+// - 기본 8색 / 파스텔 8색 토글, 브러시 굵기, 지우개, 좌우 반전
+// - 줌 (버튼 / 마우스 휠 / 두 손가락 핀치 + 팬)
 // - 실행 취소, 전체 지우기
+// - 캔버스 비율은 기기 화면(그리는 칸)에 맞춰 세로로 길어짐
+// - 도구 패널은 접이식: 펼쳐도 캔버스 위에 겹칠 뿐, 캔버스 크기/상태에 영향 없음
 // - 투명 배경으로 저장 → 수족관/도감에서 동물만 또렷하게 보임
 
 const DrawingCanvas = (() => {
-  const SIZE = 600; // 논리 캔버스 크기 (px)
+  const CW = 600; // 논리 캔버스 가로 (px)
+  let CH = 600; //  논리 캔버스 세로 — init 때 화면 비율에 맞춰 결정
   const MAX_UNDO = 40;
 
   const PALETTES = {
@@ -32,7 +34,7 @@ const DrawingCanvas = (() => {
     ],
   };
 
-  let canvas, ctx, viewport;
+  let canvas, ctx, viewport, panel, toggleBtn;
   let paletteName = "basic";
   let colorIndex = 7; // 검정으로 시작
   let brushSize = 8;
@@ -53,13 +55,13 @@ const DrawingCanvas = (() => {
   function canvasPoint(e) {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) / rect.width) * SIZE,
-      y: ((e.clientY - rect.top) / rect.height) * SIZE,
+      x: ((e.clientX - rect.left) / rect.width) * CW,
+      y: ((e.clientY - rect.top) / rect.height) * CH,
     };
   }
 
   function pushUndo() {
-    undoStack.push(ctx.getImageData(0, 0, SIZE, SIZE));
+    undoStack.push(ctx.getImageData(0, 0, CW, CH));
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     updateButtons();
   }
@@ -75,16 +77,31 @@ const DrawingCanvas = (() => {
     if (!hasDrawn) return;
     if (!(await UI.confirm("정말 전부 지울까요?"))) return;
     pushUndo();
-    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.clearRect(0, 0, CW, CH);
     updateButtons();
+  }
+
+  function flipHorizontal() {
+    if (!hasDrawn) return;
+    pushUndo();
+    const tmp = document.createElement("canvas");
+    tmp.width = CW;
+    tmp.height = CH;
+    tmp.getContext("2d").drawImage(canvas, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, CW, CH);
+    ctx.translate(CW, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
   }
 
   function setZoom(z, focus) {
     const prev = zoom;
-    zoom = Math.min(4, Math.max(0.4, z));
-    canvas.style.width = SIZE * zoom + "px";
-    canvas.style.height = SIZE * zoom + "px";
-    // 포커스 지점(뷰포트 기준)이 유지되도록 스크롤 보정
+    zoom = Math.min(4, Math.max(0.3, z));
+    canvas.style.width = CW * zoom + "px";
+    canvas.style.height = CH * zoom + "px";
     if (focus && viewport) {
       const scale = zoom / prev;
       viewport.scrollLeft = (viewport.scrollLeft + focus.x) * scale - focus.x;
@@ -117,7 +134,23 @@ const DrawingCanvas = (() => {
     last = p;
   }
 
+  // ---------- 도구 패널 (접이식 오버레이) ----------
+  function setPanel(open) {
+    panel.hidden = !open;
+    toggleBtn.classList.toggle("open", open);
+    toggleBtn.setAttribute("aria-expanded", String(open));
+  }
+
+  function updateCurrentColor() {
+    const dot = document.getElementById("current-color");
+    if (!dot) return;
+    dot.classList.toggle("eraser", eraser);
+    dot.style.background = eraser ? "" : currentColor();
+  }
+
+  // ---------- 포인터 ----------
   function onPointerDown(e) {
+    setPanel(false); // 그리기 시작하면 도구 패널 접기
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -175,21 +208,6 @@ const DrawingCanvas = (() => {
     drawing = false;
   }
 
-  function flipHorizontal() {
-    if (!hasDrawn) return;
-    pushUndo();
-    const tmp = document.createElement("canvas");
-    tmp.width = tmp.height = SIZE;
-    tmp.getContext("2d").drawImage(canvas, 0, 0);
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.clearRect(0, 0, SIZE, SIZE);
-    ctx.translate(SIZE, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(tmp, 0, 0);
-    ctx.restore();
-  }
-
   function updateButtons() {
     const undoBtn = document.getElementById("btn-undo");
     if (undoBtn) undoBtn.disabled = undoStack.length === 0;
@@ -213,28 +231,34 @@ const DrawingCanvas = (() => {
       });
       wrap.appendChild(b);
     });
+    updateCurrentColor();
   }
 
   return {
     init() {
       canvas = document.getElementById("draw-canvas");
       viewport = document.getElementById("canvas-viewport");
-      canvas.width = SIZE;
-      canvas.height = SIZE;
+      panel = document.getElementById("tool-panel");
+      toggleBtn = document.getElementById("tools-toggle");
+
+      // 그리는 칸의 비율에 맞춰 캔버스 세로 길이 결정 (세로가 길면 세로형 캔버스)
+      const availW = viewport.clientWidth - 16;
+      const availH = viewport.clientHeight - 16;
+      if (availW > 50 && availH > availW) {
+        CH = Math.min(1100, Math.round(CW * (availH / availW)));
+      }
+      canvas.width = CW;
+      canvas.height = CH;
       ctx = canvas.getContext("2d");
 
-      // 캔버스가 창 칸(가로·세로)에 꼭 맞게 시작
       const fitToViewport = () => {
-        const fit = Math.min(
-          1,
-          (viewport.clientWidth - 16) / SIZE,
-          (viewport.clientHeight - 16) / SIZE
-        );
-        setZoom(fit > 0 ? fit : 1);
+        const vw = viewport.clientWidth - 16;
+        const vh = viewport.clientHeight - 16;
+        if (vw < 50 || vh < 50) return;
+        setZoom(Math.min(1, vw / CW, vh / CH));
       };
       fitToViewport();
       window.addEventListener("resize", () => {
-        // 사용자가 직접 줌을 만지기 전이라면 화면 크기에 계속 맞춤
         if (!userZoomed) fitToViewport();
       });
 
@@ -256,6 +280,17 @@ const DrawingCanvas = (() => {
           });
         },
         { passive: false }
+      );
+
+      toggleBtn.addEventListener("click", () => setPanel(panel.hidden));
+
+      // 패널이 열린 상태에서 도구 바깥(캔버스 등)을 누르면 자동으로 접기
+      document.addEventListener(
+        "pointerdown",
+        (e) => {
+          if (!panel.hidden && !e.target.closest(".toolbar")) setPanel(false);
+        },
+        true
       );
 
       document.getElementById("btn-zoom-in").addEventListener("click", () => {
@@ -295,7 +330,7 @@ const DrawingCanvas = (() => {
     },
 
     isEmpty() {
-      return !hasDrawn || !ctx.getImageData(0, 0, SIZE, SIZE).data.some((v) => v !== 0);
+      return !hasDrawn || !ctx.getImageData(0, 0, CW, CH).data.some((v) => v !== 0);
     },
 
     // 투명 배경 PNG (base64)
@@ -304,20 +339,24 @@ const DrawingCanvas = (() => {
     },
 
     reset() {
-      if (ctx) ctx.clearRect(0, 0, SIZE, SIZE);
+      if (ctx) ctx.clearRect(0, 0, CW, CH);
       undoStack = [];
       hasDrawn = false;
       updateButtons();
     },
 
     // 기존 그림을 캔버스에 불러오기 (당일 수정용)
+    // 캔버스 비율이 달라도 그림이 들어가도록 맞춰서 그림
     loadImage(src) {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
-          ctx.clearRect(0, 0, SIZE, SIZE);
+          ctx.clearRect(0, 0, CW, CH);
           ctx.globalCompositeOperation = "source-over";
-          ctx.drawImage(img, 0, 0, SIZE, SIZE);
+          const s = Math.min(CW / img.width, CH / img.height);
+          const w = img.width * s;
+          const h = img.height * s;
+          ctx.drawImage(img, (CW - w) / 2, 0, w, h);
           undoStack = [];
           hasDrawn = true;
           updateButtons();

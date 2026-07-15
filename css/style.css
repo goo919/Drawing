@@ -175,46 +175,105 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 /* ================= 오늘의 주제 ================= */
 .topic-card {
-  padding: 14px 16px;
+  padding: 8px 12px 9px;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   transform: rotate(-0.4deg);
+  flex: none;
 }
 .topic-card::before { box-shadow: var(--lift); }
 
 .topic-label {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--muted);
   letter-spacing: 0.08em;
 }
 
-.topic-text { font-size: 1.3rem; font-weight: 800; margin-top: 4px; text-wrap: balance; }
+.topic-text { font-size: 1.05rem; font-weight: 800; margin-top: 2px; text-wrap: balance; }
 
-.topic-type { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+.topic-type { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
 
-.status-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.status-row { display: flex; gap: 6px; margin-bottom: 8px; flex: none; }
 
 .status-card {
   flex: 1;
-  padding: 8px 12px;
+  padding: 4px 10px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
 .status-card::before { border: 2px dashed var(--hair); }
 .status-card.done::before { border: 2px solid var(--ink); background: var(--faint); }
 .status-card:nth-child(1) { transform: rotate(0.4deg); }
 .status-card:nth-child(2) { transform: rotate(-0.4deg); }
-.status-name { font-weight: 800; font-size: 0.92rem; }
-.status-text { color: var(--muted); font-size: 0.82rem; }
+.status-name { font-weight: 800; font-size: 0.84rem; white-space: nowrap; }
+.status-text { color: var(--muted); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status-card.done .status-text { color: var(--ink); }
 
-/* ================= 드로잉 도구 ================= */
+/* ================= 드로잉 도구 (접이식) ================= */
 .toolbar {
-  padding: 10px 12px;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  flex: none;
+  z-index: 18; /* 펼친 패널이 캔버스 위에 오도록 */
+}
+
+.tool-slim {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brush-mini {
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.current-color {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 46% 54% 50% 50% / 52% 48% 54% 46%;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  background: #2b2d31;
+}
+.current-color.eraser {
+  background: repeating-linear-gradient(45deg, #ffffff 0 4px, #e2e2e2 4px 8px);
+}
+
+.tool-slim .zoom-label { margin-left: auto; }
+
+#tools-toggle .chevron { transition: transform 0.15s; }
+#tools-toggle.open .chevron { transform: rotate(180deg); }
+
+/* 펼친 도구 패널: 캔버스 위에 겹치는 오버레이 (레이아웃에 영향 없음) */
+.tool-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  isolation: isolate;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 10px;
+}
+.tool-panel::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: var(--paper);
+  filter: url(#pencil);
+  box-shadow: var(--lift);
 }
 
 .tool-row {

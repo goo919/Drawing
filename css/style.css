@@ -13,6 +13,10 @@
   --border: 2px solid var(--ink);
   --lift: 3px 3px 0 var(--ink);
   --nav-h: 60px;
+  /* 손으로 그린 듯 삐뚤빼뚤한 테두리 (border-radius 비대칭 트릭) */
+  --sk-a: 255px 25px 225px 25px / 25px 225px 25px 255px;
+  --sk-b: 25px 225px 25px 255px / 255px 25px 225px 25px;
+  --sk-sm: 18px 8px 16px 9px / 9px 16px 8px 18px;
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -121,12 +125,13 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 /* ================= 오늘의 주제 ================= */
 .topic-card {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-a);
   box-shadow: var(--lift);
   background: var(--paper);
   padding: 14px 16px;
   text-align: center;
   margin-bottom: 14px;
+  transform: rotate(-0.5deg);
 }
 
 .topic-label {
@@ -143,11 +148,13 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .status-card {
   flex: 1;
   border: 2px dashed var(--hair);
-  border-radius: var(--radius);
+  border-radius: var(--sk-sm);
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
 }
+.status-card:nth-child(1) { transform: rotate(0.5deg); }
+.status-card:nth-child(2) { transform: rotate(-0.5deg); }
 .status-card.done { border: var(--border); background: var(--faint); }
 .status-name { font-weight: 800; font-size: 0.92rem; }
 .status-text { color: var(--muted); font-size: 0.82rem; }
@@ -156,7 +163,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 /* ================= 드로잉 도구 ================= */
 .toolbar {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-b);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -245,7 +252,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .tool-btn {
   border: 1.5px solid var(--ink);
   background: var(--paper);
-  border-radius: 8px;
+  border-radius: 12px 7px 13px 6px / 7px 13px 6px 12px;
   width: 38px;
   height: 38px;
   display: grid;
@@ -268,7 +275,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 /* ================= 캔버스 ================= */
 .canvas-viewport {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-b);
   background: var(--faint);
   overflow: auto;
   max-height: 68vh;
@@ -292,7 +299,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 .btn {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-sm);
   padding: 12px 20px;
   font-size: 1.05rem;
   font-weight: 800;
@@ -309,11 +316,12 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 /* ================= 제출 완료 패널 ================= */
 .done-panel {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-a);
   box-shadow: var(--lift);
   padding: 22px 16px;
   text-align: center;
   background: var(--paper);
+  transform: rotate(-0.3deg);
 }
 
 .reveal-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 12px; }
@@ -323,7 +331,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .reveal-item {
   cursor: pointer;
   border: 1.5px solid var(--ink);
-  border-radius: var(--radius);
+  border-radius: var(--sk-sm);
   padding: 8px;
   width: calc(50% - 5px);
   max-width: 220px;
@@ -352,7 +360,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 }
 .filter-bar select {
   border: 1.5px solid var(--ink);
-  border-radius: 8px;
+  border-radius: 10px 5px 11px 6px / 6px 11px 5px 10px;
   padding: 5px 8px;
   background: var(--paper);
   font-size: 0.9rem;
@@ -360,19 +368,14 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 .tank {
   position: relative;
-  height: calc(100vh - var(--nav-h) - 190px);
-  min-height: 320px;
+  height: calc(100vh - var(--nav-h) - 165px);
+  min-height: 430px;
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-b);
   box-shadow: var(--lift);
   overflow: hidden;
   background: var(--paper);
-  background-image:
-    repeating-linear-gradient(
-      180deg,
-      transparent 0 46px,
-      rgba(0, 0, 0, 0.04) 46px 48px
-    );
+  cursor: pointer;
 }
 
 .fish {
@@ -401,24 +404,20 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   to   { transform: translateY(-105vh) translateX(-6px); opacity: 0; }
 }
 
-.seaweed {
+.food {
   position: absolute;
-  bottom: 0;
+  top: 0;
+  left: 0;
   width: 8px;
-  border-radius: 8px 8px 0 0;
-  background: repeating-linear-gradient(180deg, #cfcfcf 0 8px, #bdbdbd 8px 16px);
-  opacity: 0.8;
-  transform-origin: bottom center;
-  animation: sway 4.5s ease-in-out infinite alternate;
+  height: 8px;
+  border-radius: 55% 45% 50% 50% / 45% 55% 45% 55%;
+  background: var(--ink);
   pointer-events: none;
-}
-
-@keyframes sway {
-  from { transform: rotate(-6deg); }
-  to   { transform: rotate(6deg); }
+  will-change: transform;
 }
 
 .tank-empty {
+  pointer-events: none;
   position: absolute;
   inset: 0;
   display: grid;
@@ -430,7 +429,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bubble, .seaweed { animation: none; }
+  .bubble { animation: none; }
 }
 
 /* ================= 도감 ================= */
@@ -444,10 +443,12 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   border: var(--border);
   text-align: left;
   background: var(--paper);
-  border-radius: var(--radius);
+  border-radius: var(--sk-sm);
   overflow: hidden;
   padding: 0;
 }
+.dogam-card:nth-child(odd) { transform: rotate(0.6deg); }
+.dogam-card:nth-child(even) { transform: rotate(-0.5deg); }
 .dogam-card:active { background: var(--faint); }
 
 .dogam-img { padding: 10px; border-bottom: 1.5px solid var(--hair); }
@@ -511,7 +512,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   position: relative;
   background: var(--paper);
   border: var(--border);
-  border-radius: 14px;
+  border-radius: var(--sk-a);
   box-shadow: 5px 5px 0 var(--ink);
   padding: 20px 16px 16px;
   max-width: min(92vw, 440px);
@@ -562,7 +563,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 .profile-card {
   border: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--sk-sm);
   padding: 18px 8px;
   font-size: 1.05rem;
   font-weight: 800;
@@ -586,7 +587,8 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 .ui-confirm-box {
   background: var(--paper);
   border: var(--border);
-  border-radius: 14px;
+  border-radius: var(--sk-b);
+  transform: rotate(-0.4deg);
   box-shadow: 5px 5px 0 var(--ink);
   padding: 20px 18px;
   max-width: 320px;
@@ -624,5 +626,5 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   body { font-size: 17px; }
   .app-title { font-size: 1.2rem; }
   .dogam-grid { grid-template-columns: repeat(3, 1fr); }
-  .tank { height: 540px; }
+  .tank { height: 640px; }
 }

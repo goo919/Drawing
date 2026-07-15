@@ -93,10 +93,20 @@ const DrawingCanvas = (() => {
     if (label) label.textContent = Math.round(zoom * 100) + "%";
   }
 
-  function strokeTo(p) {
+  // 살짝 삐뚤빼뚤한 낙서 느낌: 점마다 미세한 흔들림 + 굵기 변화
+  function jitter(p) {
+    const j = Math.min(2.2, 0.6 + brushSize * 0.05);
+    return {
+      x: p.x + (Math.random() - 0.5) * 2 * j,
+      y: p.y + (Math.random() - 0.5) * 2 * j,
+    };
+  }
+
+  function strokeTo(rawP) {
+    const p = jitter(rawP);
     ctx.globalCompositeOperation = eraser ? "destination-out" : "source-over";
     ctx.strokeStyle = currentColor();
-    ctx.lineWidth = brushSize;
+    ctx.lineWidth = brushSize * (0.92 + Math.random() * 0.16);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();

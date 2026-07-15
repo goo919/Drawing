@@ -144,8 +144,10 @@ const Aquarium = (() => {
 
   // ---------- 유형별 움직임 ----------
   function stepSwim(a, t, dt, isSurface) {
+    // 실제로 화면에 그려지는 위치(위아래 흔들림 포함) 기준으로 판정
+    const yNow = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
     const cx = a.x + a.size / 2;
-    const cy = a.baseY + a.size / 2;
+    const cy = yNow + a.size / 2;
     const foodFilter = isSurface ? (f) => f.y < H * 0.4 : null;
 
     if (a.state === "roam") {
@@ -187,10 +189,11 @@ const Aquarium = (() => {
         a.x += a.cvx * dt;
         a.baseY += a.cvy * dt;
         a.flip = a.cvx < 0 ? -1 : 1;
-        if (d < Math.max(18, a.size * 0.36)) {
+        if (d < Math.max(9, a.size * 0.18)) {
+          // 입이 닿을 만큼 가까워졌을 때만 냠
           removeFood(food);
           a.target = null;
-          a.state = "rest"; // 냠 — 잠깐 쉬기
+          a.state = "rest"; // 잠깐 쉬기
           a.stateUntil = t + rand(700, 1900);
         }
       }
@@ -230,7 +233,7 @@ const Aquarium = (() => {
       const food = nearestFood(cx, a.footY, (f) => f.resting);
       if (food && Math.abs(food.x - cx) < 170) {
         a.vx = (food.x > cx ? 1 : -1) * Math.abs(a.vx);
-        if (Math.abs(food.x - cx) < Math.max(14, a.size * 0.3)) removeFood(food);
+        if (Math.abs(food.x - cx) < Math.max(8, a.size * 0.16)) removeFood(food);
       } else if (t > a.nextSwim) {
         // 가끔은 헤엄치고 싶다
         a.state = "swimup";
@@ -274,7 +277,7 @@ const Aquarium = (() => {
       const dir = interested ? (food.x > cx ? 1 : -1) : (a.vx < 0 ? -1 : 1);
       a.x += dir * Math.abs(a.vx) * dt;
       a.flip = dir < 0 ? -1 : 1;
-      if (interested && Math.abs(food.x - cx) < Math.max(10, a.size * 0.3)) removeFood(food);
+      if (interested && Math.abs(food.x - cx) < Math.max(7, a.size * 0.16)) removeFood(food);
       if (!interested && t > a.stateUntil) {
         a.state = "pause";
         a.stateUntil = t + rand(3000, 9000);

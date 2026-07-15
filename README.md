@@ -34,6 +34,17 @@ python3 -m http.server 8000
 브라우저에서 `http://localhost:8000` 접속.
 (Firebase 없이 로컬 모드로만 쓸 거면 `index.html`을 더블클릭해서 열어도 동작합니다.)
 
+## 진짜로 둘이 함께 쓰기 — 온라인 배포 3단계
+
+1. **Firebase 연결** (아래 "Firebase 연동" 5분 가이드) → `firebase-config.js` 를 만들어 **커밋**
+   (웹 설정값은 비밀이 아니라서 커밋해도 안전해요. 데이터 보호는 보안 규칙이 담당)
+2. **푸시** → `.github/workflows/deploy-pages.yml` 이 자동으로 GitHub Pages 에 배포
+   (첫 배포가 실패하면 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 한 번만 설정)
+3. 배포 주소 **`https://goo919.github.io/Drawing/`** 를 여자친구에게 공유 →
+   각자 폰에서 열고 A / B 프로필 선택. 끝!
+
+> 테스트 팁: Cmd/Ctrl + T 또는 주제 카드를 빠르게 3번 탭하면 주제가 다음 것으로 바뀝니다 (이 기기에서만).
+
 ## 두 사람이 같은 수족관 보기 — Firebase 연동 (공유 모드)
 
 기본 상태에서는 **로컬 모드**(💾 이 기기에만 저장)로 동작합니다.

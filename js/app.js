@@ -36,11 +36,21 @@ const App = (() => {
     return `${y}-${m}-${day}`;
   }
 
+  // 테스트용 주제 이동량 (Cmd/Ctrl+T 또는 주제 카드 3연타로 변경, 이 기기에서만 적용)
+  let topicOffset = Number(localStorage.getItem("aquarium_topic_offset") || 0);
+
   function topicForDate(key) {
     const [y, m, d] = key.split("-").map(Number);
-    const days = Math.round((new Date(y, m - 1, d) - TOPIC_EPOCH) / 86400000);
+    const days = Math.round((new Date(y, m - 1, d) - TOPIC_EPOCH) / 86400000) + topicOffset;
     const idx = ((days % TOPICS.length) + TOPICS.length) % TOPICS.length;
     return TOPICS[idx];
+  }
+
+  function debugNextTopic() {
+    topicOffset += 1;
+    localStorage.setItem("aquarium_topic_offset", topicOffset);
+    renderToday();
+    UI.toast("테스트: 주제 변경 → " + topicForDate(state.todayKey).t);
   }
 
   // ---------- 파생 데이터 ----------
@@ -324,6 +334,24 @@ const App = (() => {
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeModal();
+      // 테스트용: Cmd/Ctrl+T 로 주제 바꾸기
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        debugNextTopic();
+      }
+    });
+
+    // 테스트용 백업 제스처: 주제 카드를 빠르게 3번 탭 (모바일용)
+    let topicTaps = 0;
+    let topicTapTimer = null;
+    document.querySelector(".topic-card").addEventListener("click", () => {
+      topicTaps += 1;
+      clearTimeout(topicTapTimer);
+      topicTapTimer = setTimeout(() => (topicTaps = 0), 600);
+      if (topicTaps >= 3) {
+        topicTaps = 0;
+        debugNextTopic();
+      }
     });
     document.getElementById("aquarium-date-filter").addEventListener("change", (e) => {
       state.aquariumDate = e.target.value;

@@ -1,0 +1,35 @@
+# GitHub Pages 자동 배포
+# 이 브랜치에 푸시될 때마다 사이트가 https://goo919.github.io/Drawing/ 로 배포됩니다.
+# 첫 실행이 실패하면: 저장소 Settings → Pages → Source 를 "GitHub Actions" 로 설정하세요.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/couple-aquarium-app-n0fclh]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

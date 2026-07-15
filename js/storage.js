@@ -85,19 +85,14 @@ const Storage = (() => {
       return localList();
     },
 
-    // 그림 추가 (같은 날짜+사용자 그림이 있으면 저장하지 않음 → 수정 불가 규칙)
-    async addDrawing(rec) {
+    // 그림 저장 (같은 날짜+사용자면 덮어씀 — 당일 수정 허용은 앱 쪽에서 제어)
+    async saveDrawing(rec) {
       rec = { ...rec, id: `${rec.date}_${rec.user}` };
       if (mode === "firebase") {
-        const ref = fs.doc(db, "drawings", rec.id);
-        const existing = await fs.getDoc(ref);
-        if (existing.exists()) throw new Error("이미 오늘의 그림을 제출했어요!");
-        await fs.setDoc(ref, rec);
+        await fs.setDoc(fs.doc(db, "drawings", rec.id), rec);
         return rec;
       }
-      const list = localList();
-      if (list.some((r) => r.id === rec.id))
-        throw new Error("이미 오늘의 그림을 제출했어요!");
+      const list = localList().filter((r) => r.id !== rec.id);
       list.push(rec);
       localSave(list);
       notify();

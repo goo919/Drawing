@@ -13,6 +13,19 @@ const App = (() => {
     dogamWho: "all",
     aquariumDate: "all",
     todayKey: null,
+    editing: false, // 당일 그림 수정 중
+  };
+
+  // 유형별 안내 문구 (수족관에서 어떻게 움직이는지)
+  const TYPE_LABELS = {
+    swim: "물속을 자유롭게 헤엄쳐 다녀요",
+    surface: "수면 근처에서 놀아요",
+    jelly: "둥실둥실 떠다녀요",
+    walker: "바닥을 걸어다니고 가끔 헤엄도 쳐요",
+    crawler: "느릿느릿 기어다녀요",
+    reef: "배경이 되어 가만히 자리를 지켜요",
+    plant: "바닥에서 살랑살랑 흔들려요",
+    giant: "저 멀리서 아주 천천히 지나가요",
   };
 
   // ---------- 날짜 / 주제 ----------
@@ -62,7 +75,8 @@ const App = (() => {
     const key = state.todayKey;
     const topic = topicForDate(key);
     document.getElementById("today-date").textContent = key.replaceAll("-", ". ");
-    document.getElementById("today-topic").textContent = topic;
+    document.getElementById("today-topic").textContent = topic.t;
+    document.getElementById("today-type").textContent = TYPE_LABELS[topic.type] || "";
 
     const mine = drawingsOf(key).find((d) => d.user === state.me);
     const partner = state.me === "A" ? "B" : "A";
@@ -82,9 +96,13 @@ const App = (() => {
 
     const drawArea = document.getElementById("draw-area");
     const donePanel = document.getElementById("done-panel");
+    const submitBtn = document.getElementById("btn-submit");
+    const cancelBtn = document.getElementById("btn-cancel-edit");
+    submitBtn.textContent = state.editing ? "수정 완료!" : "완료! 수족관에 풀어주기";
+    cancelBtn.hidden = !state.editing;
 
-    if (!mine) {
-      // 아직 안 그렸으면 캔버스 표시
+    if (!mine || state.editing) {
+      // 아직 안 그렸거나 수정 중이면 캔버스 표시
       drawArea.hidden = false;
       donePanel.hidden = true;
     } else {
@@ -105,7 +123,8 @@ const App = (() => {
               )
               .join("")}
           </div>
-          <p class="hint">수족관에서 헤엄치는 모습을 확인해보세요</p>`;
+          <p class="hint">수족관에서 살아 움직이는 모습을 확인해보세요</p>
+          <button type="button" class="btn ghost" id="btn-edit-mine">오늘 그림 수정하기</button>`;
         donePanel.querySelectorAll(".reveal-item").forEach((el) => {
           el.addEventListener("click", () => {
             const d = state.drawings.find((x) => x.id === el.dataset.id);
@@ -116,10 +135,27 @@ const App = (() => {
         donePanel.innerHTML = `
           <h3 class="reveal-title">오늘의 그림 완료!</h3>
           <p class="hint">${escapeHtml(displayName(partner))}님이 제출하면 두 그림이 동시에 공개돼요.<br>내일 자정에 새로운 주제가 도착합니다.</p>
-          <button type="button" class="btn ghost" id="btn-view-mine">내 그림 미리 보기</button>`;
+          <div class="done-actions">
+            <button type="button" class="btn ghost" id="btn-view-mine">내 그림 보기</button>
+            <button type="button" class="btn ghost" id="btn-edit-mine">수정하기</button>
+          </div>`;
         document.getElementById("btn-view-mine").addEventListener("click", () => openDrawingModal(mine));
       }
+      document.getElementById("btn-edit-mine").addEventListener("click", () => startEdit(mine));
     }
+  }
+
+  async function startEdit(mine) {
+    state.editing = true;
+    await DrawingCanvas.loadImage(mine.image);
+    renderToday();
+    UI.toast("오늘 자정 전까지 수정할 수 있어요");
+  }
+
+  function cancelEdit() {
+    state.editing = false;
+    DrawingCanvas.reset();
+    renderToday();
   }
 
   async function submitDrawing() {
@@ -127,29 +163,35 @@ const App = (() => {
       UI.toast("아직 아무것도 안 그렸어요!");
       return;
     }
-    if (!(await UI.confirm("이대로 제출할까요? 제출 후에는 수정할 수 없어요!"))) return;
+    const msg = state.editing
+      ? "이대로 수정할까요?"
+      : "이대로 제출할까요? 오늘 자정 전까지는 수정할 수 있어요.";
+    if (!(await UI.confirm(msg))) return;
 
     const btn = document.getElementById("btn-submit");
+    const wasEditing = state.editing;
     btn.disabled = true;
     btn.textContent = "저장 중…";
     try {
-      await Storage.addDrawing({
+      const topic = topicForDate(state.todayKey);
+      await Storage.saveDrawing({
         date: state.todayKey,
         user: state.me,
         name: displayName(state.me),
-        topic: topicForDate(state.todayKey),
+        topic: topic.t,
+        type: topic.type,
         image: DrawingCanvas.getImage(),
         submittedAt: Date.now(),
       });
+      state.editing = false;
       DrawingCanvas.reset();
       await refresh();
       window.scrollTo({ top: 0 });
-      UI.toast("제출 완료! 오늘의 그림이 저장됐어요.");
+      UI.toast(wasEditing ? "수정 완료!" : "제출 완료! 오늘의 그림이 저장됐어요.");
     } catch (e) {
       UI.toast(e.message || "저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       btn.disabled = false;
-      btn.textContent = "완료! 수족관에 풀어주기";
     }
   }
 
@@ -276,6 +318,7 @@ const App = (() => {
       b.addEventListener("click", () => switchTab(b.dataset.tab));
     });
     document.getElementById("btn-submit").addEventListener("click", submitDrawing);
+    document.getElementById("btn-cancel-edit").addEventListener("click", cancelEdit);
     document.getElementById("modal").addEventListener("click", (e) => {
       if (e.target.id === "modal" || e.target.closest(".modal-close")) closeModal();
     });
@@ -303,6 +346,7 @@ const App = (() => {
       const now = dateKey();
       if (now !== state.todayKey) {
         state.todayKey = now;
+        state.editing = false;
         DrawingCanvas.reset();
         refresh();
       }

@@ -273,5 +273,23 @@ const DrawingCanvas = (() => {
       hasDrawn = false;
       updateButtons();
     },
+
+    // 기존 그림을 캔버스에 불러오기 (당일 수정용)
+    loadImage(src) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, SIZE, SIZE);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.drawImage(img, 0, 0, SIZE, SIZE);
+          undoStack = [];
+          hasDrawn = true;
+          updateButtons();
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = src;
+      });
+    },
   };
 })();

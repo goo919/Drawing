@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- 연필 선 느낌을 내는 SVG 필터 (테두리 전용) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="pencil" x="-4%" y="-4%" width="108%" height="108%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="4" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="4"/>
+    </filter>
+    <filter id="pencil2" x="-4%" y="-4%" width="108%" height="108%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="23" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5"/>
+    </filter>
+  </svg>
+
   <header class="app-header">
     <h1 class="app-title">우리만의 상상 수족관</h1>
     <div class="header-right">
@@ -25,6 +37,7 @@
       <div class="topic-card">
         <div class="topic-label">오늘의 주제 · <span id="today-date"></span></div>
         <h2 id="today-topic" class="topic-text"></h2>
+        <p id="today-type" class="topic-type"></p>
       </div>
 
       <div id="today-status" class="status-row"></div>
@@ -66,12 +79,15 @@
           </div>
         </div>
 
-        <div id="canvas-viewport" class="canvas-viewport">
-          <canvas id="draw-canvas"></canvas>
+        <div class="canvas-frame">
+          <div id="canvas-viewport" class="canvas-viewport">
+            <canvas id="draw-canvas"></canvas>
+          </div>
         </div>
 
         <button type="button" id="btn-submit" class="btn primary submit-btn">완료! 수족관에 풀어주기</button>
-        <p class="hint">제출하면 수정할 수 없어요. 상대방도 제출해야 서로의 그림이 공개됩니다.</p>
+        <button type="button" id="btn-cancel-edit" class="btn ghost submit-btn" hidden>수정 취소</button>
+        <p class="hint">오늘 자정 전까지는 수정할 수 있어요. 상대방도 제출해야 서로의 그림이 공개됩니다.</p>
       </div>
 
       <div id="done-panel" class="done-panel" hidden></div>

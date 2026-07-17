@@ -188,10 +188,15 @@ const DrawingCanvas = (() => {
     if (pinchStart && pointers.size === 2) {
       const pts = [...pointers.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      setZoom(pinchStart.zoom * (dist / pinchStart.dist));
-      // 두 손가락 이동으로 화면 이동(팬)
       const cx = (pts[0].x + pts[1].x) / 2;
       const cy = (pts[0].y + pts[1].y) / 2;
+      // 손가락 사이 지점을 중심으로 확대/축소
+      const rect = viewport.getBoundingClientRect();
+      setZoom(pinchStart.zoom * (dist / pinchStart.dist), {
+        x: cx - rect.left,
+        y: cy - rect.top,
+      });
+      // 두 손가락 이동으로 화면 이동(팬)
       viewport.scrollLeft += pinchStart.cx - cx;
       viewport.scrollTop += pinchStart.cy - cy;
       pinchStart.cx = cx;
@@ -241,12 +246,6 @@ const DrawingCanvas = (() => {
       panel = document.getElementById("tool-panel");
       toggleBtn = document.getElementById("tools-toggle");
 
-      // 그리는 칸의 비율에 맞춰 캔버스 세로 길이 결정 (세로가 길면 세로형 캔버스)
-      const availW = viewport.clientWidth - 16;
-      const availH = viewport.clientHeight - 16;
-      if (availW > 50 && availH > availW) {
-        CH = Math.min(1100, Math.round(CW * (availH / availW)));
-      }
       canvas.width = CW;
       canvas.height = CH;
       ctx = canvas.getContext("2d");
@@ -257,8 +256,31 @@ const DrawingCanvas = (() => {
         if (vw < 50 || vh < 50) return;
         setZoom(Math.min(1, vw / CW, vh / CH));
       };
-      fitToViewport();
+
+      // 그리는 칸의 비율에 맞춰 캔버스 세로 길이 결정 (세로가 길면 세로형 캔버스)
+      // 첫 획을 긋기 전까지는 화면 변화(버튼 접기 등)에 맞춰 비율을 계속 갱신
+      const sizeCanvasIfNeeded = () => {
+        if (hasDrawn) return;
+        const availW = viewport.clientWidth - 16;
+        const availH = viewport.clientHeight - 16;
+        if (availW < 50 || availH < 50) return; // 아직 숨겨져 있음
+        const newCH = availH > availW
+          ? Math.min(1100, Math.round(CW * (availH / availW)))
+          : 600;
+        if (newCH !== CH) {
+          CH = newCH;
+          canvas.height = CH; // (그리기 전이라 내용 손실 없음)
+        }
+        fitToViewport();
+      };
+      sizeCanvasIfNeeded();
+
+      this.refit = () => {
+        sizeCanvasIfNeeded();
+        if (!userZoomed) fitToViewport();
+      };
       window.addEventListener("resize", () => {
+        sizeCanvasIfNeeded();
         if (!userZoomed) fitToViewport();
       });
 
@@ -293,13 +315,18 @@ const DrawingCanvas = (() => {
         true
       );
 
+      // 버튼 줌은 보이는 화면의 정중앙을 기준으로
+      const centerFocus = () => ({
+        x: viewport.clientWidth / 2,
+        y: viewport.clientHeight / 2,
+      });
       document.getElementById("btn-zoom-in").addEventListener("click", () => {
         userZoomed = true;
-        setZoom(zoom + 0.25);
+        setZoom(zoom + 0.25, centerFocus());
       });
       document.getElementById("btn-zoom-out").addEventListener("click", () => {
         userZoomed = true;
-        setZoom(zoom - 0.25);
+        setZoom(zoom - 0.25, centerFocus());
       });
       document.getElementById("btn-undo").addEventListener("click", undo);
       document.getElementById("btn-clear").addEventListener("click", clearAll);

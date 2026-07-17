@@ -437,7 +437,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   overflow: auto;
   padding: 6px;
   display: grid;
-  place-items: start center;
+  place-items: center;
   touch-action: none; /* 그리는 동안 페이지가 움직이지 않도록 (줌은 자체 처리) */
   overscroll-behavior: contain;
 }
@@ -451,8 +451,26 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   display: block;
 }
 
-.submit-btn { margin-top: 10px; width: 100%; flex: none; }
+.submit-btn { width: 100%; flex: none; }
 #btn-cancel-edit { margin-top: 8px; }
+
+/* 완료/취소 버튼 접기 핸들 */
+.actions-toggle {
+  flex: none;
+  width: 100%;
+  height: 20px;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.actions-toggle svg { width: 16px; height: 16px; transition: transform 0.15s; }
+.actions-toggle.collapsed svg { transform: rotate(180deg); }
+
+#action-area { flex: none; display: flex; flex-direction: column; }
 
 /* 화면이 낮으면 안내 문구를 줄여서 캔버스 공간 확보 */
 @media (max-height: 740px) {
@@ -568,6 +586,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   left: 0;
   will-change: transform;
   cursor: pointer;
+  touch-action: none; /* 문지르기(쓰다듬기) 제스처 인식용 */
   filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.1));
 }
 .fish img { width: 100%; display: block; pointer-events: none; }

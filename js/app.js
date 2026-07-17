@@ -18,7 +18,7 @@ const App = (() => {
     me: null, // 'A'(자성) | 'B'(지수)
     names: { ...USERS },
     drawings: [],
-    tab: "today",
+    tab: "aquarium", // 앱을 열면 수족관부터
     dogamSort: "newest",
     dogamWho: "all",
     aquariumDate: "all",
@@ -354,7 +354,10 @@ const App = (() => {
     if (tab === "aquarium") renderAquarium();
     else Aquarium.stop();
     if (tab === "dogam") renderDogam();
-    if (tab === "today") renderToday();
+    if (tab === "today") {
+      renderToday();
+      if (DrawingCanvas.refit) DrawingCanvas.refit(); // 처음 열릴 때 캔버스 크기 맞춤
+    }
     window.scrollTo({ top: 0 });
   }
 
@@ -489,6 +492,14 @@ const App = (() => {
     });
     document.getElementById("btn-submit").addEventListener("click", submitDrawing);
     document.getElementById("btn-cancel-edit").addEventListener("click", cancelEdit);
+
+    // 완료/취소 버튼 접기·펴기 (접으면 캔버스가 그만큼 커짐)
+    document.getElementById("actions-toggle").addEventListener("click", (e) => {
+      const area = document.getElementById("action-area");
+      area.hidden = !area.hidden;
+      e.currentTarget.classList.toggle("collapsed", area.hidden);
+      if (DrawingCanvas.refit) DrawingCanvas.refit();
+    });
     document.getElementById("modal").addEventListener("click", (e) => {
       if (e.target.id === "modal" || e.target.closest(".modal-close")) closeModal();
     });

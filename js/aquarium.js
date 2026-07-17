@@ -40,6 +40,44 @@ const Aquarium = (() => {
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
+  // 그림 id 기반 고정 시드 난수 — 크기·성격이 접속할 때마다 바뀌지 않도록
+  function seededRand(seedStr) {
+    let h = 2166136261;
+    for (let i = 0; i < seedStr.length; i++) {
+      h ^= seedStr.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return () => {
+      h = Math.imul(h ^ (h >>> 15), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return (h >>> 0) / 4294967296;
+    };
+  }
+
+  // 위치 저장/복원 (비율 좌표라 화면 크기가 달라도 이어짐)
+  const POS_KEY = "aquarium_positions_v1";
+  let posStore = {};
+  try {
+    posStore = JSON.parse(localStorage.getItem(POS_KEY)) || {};
+  } catch {}
+  let lastPosSave = 0;
+
+  function savePositions() {
+    if (!W || !H) return;
+    for (const a of actors) {
+      posStore[a.drawingId] = {
+        nx: a.x / W,
+        ny: a.baseY / H,
+        nfy: a.footY != null ? a.footY / H : undefined,
+        dir: a.vx < 0 ? -1 : 1,
+      };
+    }
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(posStore));
+    } catch {}
+  }
+
   function makeBubbles() {
     for (let i = 0; i < 12; i++) {
       const b = document.createElement("div");
@@ -125,13 +163,20 @@ const Aquarium = (() => {
   function petActor(a, broadcast) {
     spawnHeart(a);
     a.petUntil = performance.now() + 700; // 몸을 살짝 흔드는 반응
-    if (broadcast) Storage.sendEvent({ type: "pet", drawingId: a.drawingId }).catch(() => {});
+    // 문지르는 동안 하트가 여러 번 떠도, 전송은 0.6초에 한 번만
+    if (broadcast && Date.now() - (a.lastPetSent || 0) > 600) {
+      a.lastPetSent = Date.now();
+      Storage.sendEvent({ type: "pet", drawingId: a.drawingId }).catch(() => {});
+    }
   }
 
   // ---------- 배우(그림) 생성 ----------
   async function addActor(drawing, commentTexts) {
     const type = SIZES[drawing.type] ? drawing.type : "swim";
     const cropped = await croppedImage(drawing);
+    // 이 그림 고유의 고정 난수 (크기·성격이 매번 같음)
+    const sr = seededRand(drawing.id);
+    const srand = (a, b) => a + sr() * (b - a);
 
     const el = document.createElement("div");
     el.className = `fish fish-${type}`;
@@ -143,7 +188,7 @@ const Aquarium = (() => {
     el.style.zIndex = LAYERS[type];
     tank.appendChild(el);
 
-    let size = rand(...SIZES[type]); // 가로 폭
+    let size = srand(...SIZES[type]); // 가로 폭
     if (type === "giant") size = Math.min(size, W * 0.65);
     // 그림 비율이 극단적이어도 화면에서 적당한 크기가 되도록 보정
     let h = size * cropped.ratio;
@@ -157,14 +202,14 @@ const Aquarium = (() => {
     const a = {
       el, type, size, h,
       drawingId: drawing.id,
-      x: rand(0, Math.max(1, W - size)),
-      baseY: rand(20, Math.max(21, floorY - h - 30)),
-      vx: rand(16, 40) * (Math.random() < 0.5 ? -1 : 1),
+      x: srand(0, Math.max(1, W - size)),
+      baseY: srand(20, Math.max(21, floorY - h - 30)),
+      vx: srand(16, 40) * (sr() < 0.5 ? -1 : 1),
       cvx: 0, cvy: 0,
-      chaseSp: rand(35, 62),
-      bobAmp: rand(6, 18),
-      bobSpeed: rand(0.4, 1.3),
-      phase: rand(0, Math.PI * 2),
+      chaseSp: srand(35, 62),
+      bobAmp: srand(6, 18),
+      bobSpeed: srand(0.4, 1.3),
+      phase: srand(0, Math.PI * 2),
       state: "roam",
       stateUntil: 0,
       nextLook: 0,
@@ -175,20 +220,38 @@ const Aquarium = (() => {
     };
     a.ry = a.baseY;
 
-    // 탭 = 쓰다듬기, 빠르게 두 번 탭 = 자세히 보기
-    el.addEventListener("click", () => {
-      const now = Date.now();
-      if (a.tapTimer && now - (a.lastTap || 0) < 320) {
-        clearTimeout(a.tapTimer);
-        a.tapTimer = null;
-        App.openDrawingModal(drawing);
-      } else {
-        a.lastTap = now;
-        a.tapTimer = setTimeout(() => {
-          a.tapTimer = null;
-          petActor(a, true);
-        }, 320);
+    // 손가락으로 살살 문지르면 쓰다듬기, 가만히 톡 누르면 자세히 보기
+    el.addEventListener("pointerdown", (e) => {
+      a.rub = { lx: e.clientX, ly: e.clientY, total: 0, acc: 0, lastDir: 0, turns: 0 };
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {}
+    });
+    el.addEventListener("pointermove", (e) => {
+      const r = a.rub;
+      if (!r) return;
+      const dx = e.clientX - r.lx;
+      const dy = e.clientY - r.ly;
+      r.lx = e.clientX;
+      r.ly = e.clientY;
+      r.total += Math.abs(dx) + Math.abs(dy);
+      r.acc += Math.abs(dx) + Math.abs(dy);
+      if (dx) {
+        const d = Math.sign(dx);
+        if (r.lastDir && d !== r.lastDir) r.turns++; // 좌우로 비비는 왕복 감지
+        r.lastDir = d;
       }
+      if (r.turns >= 1 && r.acc > 34) {
+        r.acc = 0; // 계속 비비면 하트가 계속
+        petActor(a, true);
+      }
+    });
+    const endRub = () => setTimeout(() => (a.rub = null), 0);
+    el.addEventListener("pointerup", endRub);
+    el.addEventListener("pointercancel", endRub);
+    el.addEventListener("click", () => {
+      if (a.rub && a.rub.total > 14) return; // 문지른 거면 모달 안 열기
+      App.openDrawingModal(drawing);
     });
 
     // 댓글 말풍선 — 물고기를 따라다니고, 여러 개면 주기적으로 랜덤 전환
@@ -205,28 +268,42 @@ const Aquarium = (() => {
       bEl.textContent = commentTexts[a.bubble.idx];
     }
 
-    // 유형별 초기 배치
+    // 유형별 초기 배치 (그림별 고정 시드 → 매번 같은 자리 성향)
     if (type === "walker" || type === "crawler" || type === "reef" || type === "plant") {
-      a.footY = floorY + rand(6, Math.max(8, H - floorY - 10)); // 발이 닿는 모랫바닥 위치
+      a.footY = floorY + srand(6, Math.max(8, H - floorY - 10)); // 발이 닿는 모랫바닥 위치
       a.baseY = a.footY - h;
-      a.vx = type === "walker" ? rand(8, 15) * (Math.random() < 0.5 ? -1 : 1)
-           : type === "crawler" ? rand(2, 5) * (Math.random() < 0.5 ? -1 : 1)
+      a.vx = type === "walker" ? srand(8, 15) * (sr() < 0.5 ? -1 : 1)
+           : type === "crawler" ? srand(2, 5) * (sr() < 0.5 ? -1 : 1)
            : 0;
       a.state = type === "crawler" ? "pause" : "walk";
       a.stateUntil = performance.now() + rand(1000, 5000);
       a.nextSwim = performance.now() + rand(15000, 40000);
     } else if (type === "jelly") {
-      a.bobAmp = rand(22, 45);
-      a.bobSpeed = rand(0.25, 0.5);
-      a.vx = rand(4, 9) * (Math.random() < 0.5 ? -1 : 1);
+      a.bobAmp = srand(22, 45);
+      a.bobSpeed = srand(0.25, 0.5);
+      a.vx = srand(4, 9) * (sr() < 0.5 ? -1 : 1);
     } else if (type === "giant") {
-      a.vx = rand(5, 9) * (Math.random() < 0.5 ? -1 : 1);
-      a.baseY = rand(10, Math.max(11, H * 0.55 - h / 2));
-      a.bobAmp = rand(4, 9);
-      a.bobSpeed = rand(0.15, 0.3);
+      a.vx = srand(5, 9) * (sr() < 0.5 ? -1 : 1);
+      a.baseY = srand(10, Math.max(11, H * 0.55 - h / 2));
+      a.bobAmp = srand(4, 9);
+      a.bobSpeed = srand(0.15, 0.3);
     } else if (type === "surface") {
-      a.baseY = rand(4, Math.max(5, H * 0.14));
-      a.bobAmp = rand(3, 7);
+      a.baseY = srand(4, Math.max(5, H * 0.14));
+      a.bobAmp = srand(3, 7);
+    }
+
+    // 지난번 위치가 저장되어 있으면 이어서 시작 (나갔다 들어와도 그 자리)
+    const saved = posStore[drawing.id];
+    if (saved && typeof saved.nx === "number") {
+      a.x = Math.min(Math.max(saved.nx * W, 0), Math.max(0, W - size));
+      if (a.footY != null && typeof saved.nfy === "number") {
+        a.footY = Math.min(Math.max(saved.nfy * H, floorY + 4), H - 4);
+        a.baseY = a.footY - h;
+      } else if (type !== "surface") {
+        a.baseY = Math.min(Math.max(saved.ny * H, 4), Math.max(5, floorY - h - 4));
+      }
+      if (saved.dir) a.vx = Math.abs(a.vx) * saved.dir;
+      a.ry = a.baseY;
     }
     actors.push(a);
   }
@@ -512,6 +589,12 @@ const Aquarium = (() => {
         b.el.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
       }
     }
+
+    // 위치를 주기적으로 저장 → 나갔다 들어와도 이어짐
+    if (t - lastPosSave > 4000) {
+      lastPosSave = t;
+      savePositions();
+    }
     rafId = requestAnimationFrame(tick);
   }
 
@@ -569,6 +652,7 @@ const Aquarium = (() => {
     },
 
     stop() {
+      savePositions();
       cancelAnimationFrame(rafId);
     },
   };

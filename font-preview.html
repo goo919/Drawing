@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>손글씨 폰트 미리보기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gaegu:wght@400;700&family=Hi+Melody&family=Gamja+Flower&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background: #fff; color: #111; padding: 20px 16px 60px; max-width: 560px; margin: 0 auto;
+    }
+    h1 { font-size: 1.2rem; margin-bottom: 4px; }
+    .sub { color: #6b6b6b; font-size: .85rem; margin-bottom: 20px; }
+    .card { border: 2px solid #111; border-radius: 12px; padding: 14px; margin-bottom: 18px; box-shadow: 3px 3px 0 #111; }
+    .fname { font-size: .8rem; font-weight: 800; letter-spacing: .05em; color: #6b6b6b; margin-bottom: 10px; }
+    .bubble {
+      display: inline-block; position: relative; background: #fff;
+      border: 1.5px solid #111; border-radius: 10px 12px 11px 12px;
+      padding: 4px 12px; margin-bottom: 14px; box-shadow: 2px 2px 0 rgba(17,17,17,.15);
+    }
+    .bubble::after {
+      content: ""; position: absolute; left: 24px; bottom: -5px; width: 8px; height: 8px;
+      background: #fff; border-right: 1.5px solid #111; border-bottom: 1.5px solid #111;
+      transform: rotate(45deg);
+    }
+    .comment { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; }
+    .chip { font-family: -apple-system, sans-serif; font-size: .7rem; font-weight: 700; border: 1.5px solid #111; border-radius: 999px; padding: 0 8px; }
+    .chip.a { background: #111; color: #fff; }
+    .time { font-family: -apple-system, sans-serif; color: #6b6b6b; font-size: .68rem; }
+    .f1 { font-family: "Nanum Pen Script"; font-size: 1.5rem; }
+    .f2 { font-family: "Gaegu"; font-size: 1.25rem; }
+    .f3 { font-family: "Hi Melody"; font-size: 1.25rem; }
+    .f4 { font-family: "Gamja Flower"; font-size: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>손글씨 폰트 미리보기 ✍️</h1>
+  <p class="sub">댓글 · 말풍선에 들어갈 모습 그대로 비교해보세요</p>
+
+  <div class="card">
+    <div class="fname">1. 나눔 펜 스크립트 (Nanum Pen Script)</div>
+    <div class="f1">
+      <span class="bubble">오늘 그림 너무 귀엽다! 진짜 물속에 있는 것 같아</span>
+      <div class="comment"><span class="chip a">자성</span><span>비 오는 날의 물고기 완성! 어때?</span><span class="time">07.17 21:03</span></div>
+      <div class="comment"><span class="chip">지수</span><span>지느러미 색깔 고른 거 천재적인데?</span><span class="time">07.17 21:10</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fname">2. 개구체 (Gaegu)</div>
+    <div class="f2">
+      <span class="bubble">오늘 그림 너무 귀엽다! 진짜 물속에 있는 것 같아</span>
+      <div class="comment"><span class="chip a">자성</span><span>비 오는 날의 물고기 완성! 어때?</span><span class="time">07.17 21:03</span></div>
+      <div class="comment"><span class="chip">지수</span><span>지느러미 색깔 고른 거 천재적인데?</span><span class="time">07.17 21:10</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fname">3. 하이멜로디 (Hi Melody)</div>
+    <div class="f3">
+      <span class="bubble">오늘 그림 너무 귀엽다! 진짜 물속에 있는 것 같아</span>
+      <div class="comment"><span class="chip a">자성</span><span>비 오는 날의 물고기 완성! 어때?</span><span class="time">07.17 21:03</span></div>
+      <div class="comment"><span class="chip">지수</span><span>지느러미 색깔 고른 거 천재적인데?</span><span class="time">07.17 21:10</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fname">4. 감자꽃 (Gamja Flower)</div>
+    <div class="f4">
+      <span class="bubble">오늘 그림 너무 귀엽다! 진짜 물속에 있는 것 같아</span>
+      <div class="comment"><span class="chip a">자성</span><span>비 오는 날의 물고기 완성! 어때?</span><span class="time">07.17 21:03</span></div>
+      <div class="comment"><span class="chip">지수</span><span>지느러미 색깔 고른 거 천재적인데?</span><span class="time">07.17 21:10</span></div>
+    </div>
+  </div>
+</body>
+</html>

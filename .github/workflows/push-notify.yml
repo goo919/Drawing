@@ -9,6 +9,19 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
+      message:
+        description: "보낼 문구 (입력하면 자유 문구 알림으로 즉시 발송)"
+        default: ""
+      target:
+        description: "보낼 대상"
+        type: choice
+        options: ["둘 다", "자성", "지수"]
+        default: "둘 다"
+      sender:
+        description: "보낸 사람 (알림 제목에 표시)"
+        type: choice
+        options: ["자성", "지수"]
+        default: "자성"
       test:
         description: "true 면 모든 기기에 테스트 알림 전송"
         default: "false"
@@ -35,4 +48,7 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           TEST_PUSH: ${{ github.event.inputs.test }}
+          PUSH_MESSAGE: ${{ github.event.inputs.message }}
+          PUSH_TARGET: ${{ github.event.inputs.target }}
+          PUSH_SENDER: ${{ github.event.inputs.sender }}
         run: node scripts/push-notify.mjs

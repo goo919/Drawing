@@ -130,6 +130,21 @@ async function notify(targetUsers, payload) {
   }
 }
 
+// ---------- 자유 문구 수동 발송 (Actions 의 Run workflow 에서 message 입력) ----------
+if (process.env.PUSH_MESSAGE && process.env.PUSH_MESSAGE.trim()) {
+  const targetLabel = process.env.PUSH_TARGET || "둘 다";
+  const targets =
+    targetLabel === "자성" ? ["A"] : targetLabel === "지수" ? ["B"] : "all";
+  const sender = process.env.PUSH_SENDER || "자성";
+  console.log(`자유 문구 발송: [${sender} → ${targetLabel}] ${process.env.PUSH_MESSAGE}`);
+  await notify(targets, {
+    title: `💌 ${sender}의 메시지`,
+    body: process.env.PUSH_MESSAGE.trim(),
+    tag: "manual-" + Date.now(),
+  });
+  process.exit(process.exitCode || 0);
+}
+
 // ---------- 수동 테스트 (Actions 의 Run workflow 에서 test=true) ----------
 if (process.env.TEST_PUSH === "true") {
   console.log("테스트 알림 발송");

@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>우리만의 상상 수족관</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐟</text></svg>">
+  <!-- PWA: 홈 화면에 추가 + 웹 푸시 지원 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="상상수족관">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -24,6 +31,9 @@
     <h1 class="app-title">우리만의 상상 수족관</h1>
     <div class="header-right">
       <span id="mode-badge" class="mode-badge"></span>
+      <button type="button" id="btn-push" class="icon-btn push-bell" title="알림 받기" aria-label="알림 받기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9z"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+      </button>
       <button type="button" id="me-chip" class="me-chip" hidden></button>
       <button type="button" id="btn-switch-user" class="icon-btn" title="프로필 바꾸기" aria-label="프로필 바꾸기">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
@@ -32,6 +42,15 @@
   </header>
 
   <main>
+    <!-- 알림 안내 배너 (첫 방문 시, 강제 팝업 대신 부드럽게 유도) -->
+    <div id="push-banner" class="push-banner" hidden>
+      <span class="push-banner-text">🔔 매일 새 주제와 상대방 소식을 알림으로 받아보세요</span>
+      <span class="push-banner-actions">
+        <button type="button" id="push-banner-on">켜기</button>
+        <button type="button" id="push-banner-later">나중에</button>
+      </span>
+    </div>
+
     <!-- ============ 오늘의 그림 ============ -->
     <section id="tab-today" class="tab-panel">
       <div class="topic-card">
@@ -183,9 +202,11 @@
 
   <!-- Firebase 설정 (선택): firebase-config.example.js 를 복사해 firebase-config.js 로 만들면 공유 모드가 켜집니다 -->
   <script src="firebase-config.js"></script>
+  <script src="push-public-key.js"></script>
   <script src="js/topics.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/push.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/aquarium.js"></script>
   <script src="js/dogam.js"></script>

@@ -75,7 +75,10 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /meta/{docId} {
-      allow read, write: if true; // 이름 표시(profiles) + 로그인 정보(auth)
+      allow read, write: if true; // 이름(profiles) + 로그인(auth) + 알림 상태(notify_state)
+    }
+    match /push_subs/{id} {
+      allow read, write: if true; // 웹 푸시 구독 정보
     }
   }
 }
@@ -84,40 +87,34 @@ service cloud.firestore {
 > 두 사람만 아는 URL로 운영하는 소규모 앱 기준의 단순한 규칙입니다.
 > 더 잠그고 싶다면 Firebase 익명 인증 + 규칙 강화를 추가하면 됩니다.
 
-## 카카오톡 아침 알림 (선택)
+## 웹 푸시 알림 (홈 화면 앱 알림)
 
-매일 자정(00:05 KST)에 두 사람의 카카오톡 **"나와의 채팅"** 으로
-"오늘의 주제 도착" 메시지가 갑니다. GitHub Actions(`kakao-notify.yml`)가 보내며,
-시크릿이 설정되지 않으면 조용히 건너뛰므로 안 써도 무방합니다.
+매일 자정 새 주제, 상대방 제출, 공개 순간을 **폰 알림**으로 받습니다.
+GitHub Actions 가 10분마다 확인해서 발송하므로 별도 서버·유료 서비스가 없습니다.
+(제출/공개 알림은 최대 10~15분 지연될 수 있어요)
 
-### 설정 (약 10분, 한 번만)
+### 동작 구조
 
-1. [카카오 개발자](https://developers.kakao.com) → 애플리케이션 추가 → **REST API 키** 복사
-2. 앱 설정에서:
-   - **카카오 로그인 활성화** + Redirect URI에 `https://goo919.github.io/Drawing/` 등록
-   - **동의항목**에서 "카카오톡 메시지 전송(talk_message)" 을 "선택 동의"로 설정
-   - **팀원 관리**에 지수의 카카오 계정 초대 (개발 중 앱은 팀원만 로그인 가능)
-3. **각자** 자기 카카오 계정으로 아래 URL을 브라우저에서 열어 동의 → 주소창에 붙는 `code=...` 값 복사
-   ```
-   https://kauth.kakao.com/oauth/authorize?client_id=REST키&redirect_uri=https://goo919.github.io/Drawing/&response_type=code&scope=talk_message
-   ```
-4. 받은 code로 토큰 발급 (10분 안에, code는 1회용):
-   ```bash
-   curl -X POST https://kauth.kakao.com/oauth/token \
-     -d grant_type=authorization_code \
-     -d client_id=REST키 \
-     -d redirect_uri=https://goo919.github.io/Drawing/ \
-     -d code=아까받은code
-   ```
-   응답의 **`refresh_token`** 값을 보관 (각자 1개씩, 총 2개)
-5. GitHub 저장소 → Settings → Secrets and variables → Actions 에 등록:
-   - `KAKAO_REST_KEY` = REST API 키
-   - `KAKAO_REFRESH_A` = 자성의 refresh_token
-   - `KAKAO_REFRESH_B` = 지수의 refresh_token
-6. Actions 탭 → "KakaoTalk daily reminder" → Run workflow 로 즉시 테스트
+1. 앱에서 🔔 버튼으로 알림을 켜면 브라우저가 발급한 구독 정보(배달 주소)가 Firestore `push_subs` 에 저장됨
+2. GitHub Actions(`push-notify.yml`)가 10분마다 `scripts/push-notify.mjs` 실행:
+   - 자정 이후 첫 실행 → 둘에게 "오늘의 주제" 알림
+   - 오늘 제출 현황 확인 → 한쪽만 제출이면 상대에게, 둘 다면 공개 알림
+   - 중복 발송 방지 상태는 Firestore `meta/notify_state` 에 기록
+3. 발송은 VAPID 서명으로 애플/구글 푸시 서버에 직접 요청 (무료)
 
-> refresh token은 사용 중이면 자동 연장되지만, 두 달 이상 워크플로가 실패하면
-> 3~5번을 다시 하면 됩니다. 알림은 각자 자신의 "나와의 채팅"방으로 도착합니다.
+### 설정 (1회)
+
+1. GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret:
+   - `VAPID_PRIVATE_KEY` = (개인키 — 공개키는 `push-public-key.js` 에 커밋되어 있음)
+2. Firestore 규칙에 `push_subs` 허용 추가 (아래 규칙 전문 참고)
+3. 각자 폰에서 알림 켜기:
+   - **아이폰**: 사파리로 접속 → 공유(⬆︎) → **홈 화면에 추가** → 홈 화면의 🐠 아이콘으로 열기 → 🔔 버튼 → 켜기 (iOS 16.4 이상)
+   - **안드로이드/PC 크롬**: 사이트에서 바로 🔔 버튼 → 켜기
+
+### 테스트
+
+Actions 탭 → **Web push notifications** → Run workflow → `test` 에 `true` 입력 → 실행.
+알림 켠 모든 기기에 "🔔 테스트 알림"이 도착하면 성공.
 
 ## 왜 Firebase(옵션 A)를 추천하나요?
 

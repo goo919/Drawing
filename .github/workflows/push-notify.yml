@@ -1,0 +1,38 @@
+# 웹 푸시 알림 발송
+# - 10분마다 실행: 자정 후 첫 실행에서 "오늘의 주제" 알림, 그 외엔 제출/공개 감지 알림
+# - VAPID_PRIVATE_KEY 시크릿이 없으면 조용히 건너뜁니다 (README의 웹 푸시 설정 참고)
+# - 수동 테스트: Actions 탭 → Run workflow → test 를 true 로
+name: Web push notifications
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "true 면 모든 기기에 테스트 알림 전송"
+        default: "false"
+
+concurrency:
+  group: push-notify
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install web-push
+        run: npm install --no-save --no-audit --no-fund web-push
+      - name: Send notifications
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          TEST_PUSH: ${{ github.event.inputs.test }}
+        run: node scripts/push-notify.mjs

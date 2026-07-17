@@ -19,6 +19,12 @@ const Storage = (() => {
     changeCallbacks.forEach((cb) => cb());
   }
 
+  function djb2(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return h.toString(16);
+  }
+
   // ---------- 로컬 모드 ----------
   function localList() {
     try {
@@ -106,6 +112,23 @@ const Storage = (() => {
         return snap.exists() ? snap.data() : {};
       }
       return localProfiles();
+    },
+
+    // ---------- 웹 푸시 구독 (공유 모드 전용) ----------
+    async savePushSub(user, sub) {
+      if (mode !== "firebase") throw new Error("공유 모드에서만 알림을 쓸 수 있어요");
+      const id = user + "_" + djb2(sub.endpoint);
+      await fs.setDoc(fs.doc(db, "push_subs", id), {
+        user,
+        endpoint: sub.endpoint,
+        sub: JSON.stringify(sub),
+        updatedAt: Date.now(),
+      });
+    },
+
+    async removePushSub(user, endpoint) {
+      if (mode !== "firebase") return;
+      await fs.deleteDoc(fs.doc(db, "push_subs", user + "_" + djb2(endpoint)));
     },
 
     // 로그인 정보 { A: 해시, B: 해시 } — 첫 로그인 때 등록됨

@@ -340,6 +340,7 @@ const App = (() => {
       document.getElementById("login-overlay").hidden = true;
       UI.toast(`${USERS[user]}님, 어서 오세요!`);
       await refresh();
+      Push.init(state.me);
     } finally {
       btn.disabled = false;
     }
@@ -472,6 +473,7 @@ const App = (() => {
     const loggedIn = await tryAutoLogin();
     await refresh();
     if (!loggedIn) showLogin();
+    else Push.init(state.me);
   }
 
   document.addEventListener("DOMContentLoaded", init);

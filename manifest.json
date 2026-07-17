@@ -1,0 +1,15 @@
+{
+  "name": "우리만의 상상 수족관",
+  "short_name": "상상수족관",
+  "description": "매일 하나의 주제로 상상 동물을 그려 함께 채우는 두 사람의 수족관",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

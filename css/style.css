@@ -42,13 +42,15 @@ main {
   margin: 0 auto;
   padding: 10px 14px calc(var(--nav-h) + 10px + env(safe-area-inset-bottom));
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .tab-panel {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 button { font-family: inherit; cursor: pointer; color: var(--ink); }
@@ -136,6 +138,45 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 }
 .icon-btn svg { width: 20px; height: 20px; }
 .icon-btn:active { background: var(--faint); }
+
+.push-bell { position: relative; color: var(--muted); }
+.push-bell.on { color: var(--ink); }
+.push-bell.on::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* 알림 안내 배너 */
+.push-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1.5px dashed var(--ink);
+  border-radius: 9px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--faint);
+}
+.push-banner-actions { display: flex; gap: 6px; flex: none; }
+.push-banner-actions button {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--paper);
+}
+#push-banner-on { background: var(--ink); color: var(--paper); }
 
 /* ================= 하단 탭바 ================= */
 .tabs {

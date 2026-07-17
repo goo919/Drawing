@@ -36,15 +36,20 @@ webpush.setVapidDetails(subject, vapidPublic, vapidPrivate);
 // ---------- Firestore REST 헬퍼 ----------
 const BASE = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 
+function withKey(path) {
+  // path 에 이미 쿼리(?)가 있으면 & 로 이어붙인다
+  return `${BASE}/${path}${path.includes("?") ? "&" : "?"}key=${apiKey}`;
+}
+
 async function fsGet(path) {
-  const r = await fetch(`${BASE}/${path}?key=${apiKey}`);
+  const r = await fetch(withKey(path));
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`Firestore GET ${path} 실패: ${r.status} ${await r.text()}`);
   return r.json();
 }
 
 async function fsPatch(path, fields) {
-  const r = await fetch(`${BASE}/${path}?key=${apiKey}`, {
+  const r = await fetch(withKey(path), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fields }),
@@ -53,7 +58,7 @@ async function fsPatch(path, fields) {
 }
 
 async function fsDelete(path) {
-  await fetch(`${BASE}/${path}?key=${apiKey}`, { method: "DELETE" });
+  await fetch(withKey(path), { method: "DELETE" });
 }
 
 // 오늘 날짜의 그림들만 (이미지 필드 제외하고) 조회

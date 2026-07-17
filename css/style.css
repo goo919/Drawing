@@ -13,6 +13,7 @@
   --hair: #c9c9c9;
   --lift: 3px 3px 0 rgba(17, 17, 17, 0.9);
   --nav-h: 60px;
+  --hand-font: "Gaegu", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; /* 손글씨 (댓글/말풍선) */
 }
 
 html { -webkit-text-size-adjust: 100%; height: 100%; }
@@ -618,12 +619,13 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   top: 0;
   left: 0;
   z-index: 22;
-  max-width: 140px;
+  max-width: 150px;
   background: var(--paper);
   border: 1.5px solid var(--ink);
   border-radius: 10px 12px 11px 12px;
-  padding: 2px 8px 3px;
-  font-size: 0.7rem;
+  padding: 1px 9px 2px;
+  font-family: var(--hand-font);
+  font-size: 0.92rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -837,8 +839,9 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 0.85rem;
-  line-height: 1.35;
+  font-family: var(--hand-font);
+  font-size: 1.05rem;
+  line-height: 1.3;
 }
 .comment-text { flex: 1; min-width: 0; word-break: break-word; }
 .comment-time {
@@ -855,8 +858,9 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   min-width: 0;
   border: 1.5px solid var(--ink);
   border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 0.88rem;
+  padding: 6px 14px;
+  font-family: var(--hand-font);
+  font-size: 1.02rem;
 }
 .comment-send {
   border: 1.5px solid var(--ink);

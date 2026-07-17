@@ -17,6 +17,12 @@ const Storage = (() => {
   let db = null;
   const CLIENT_ID = Math.random().toString(36).slice(2); // 내 이벤트 에코 방지
 
+  // 실시간 구독 캐시 — 내 쓰기가 서버 왕복 전에도 바로 보이고,
+  // 일부 컬렉션이 규칙 문제로 막혀도 앱이 죽지 않게 한다
+  let cacheDrawings = null;
+  let cacheComments = null;
+  let cacheSettings = null;
+
   function notify() {
     changeCallbacks.forEach((cb) => cb());
   }
@@ -65,21 +71,48 @@ const Storage = (() => {
           db = fs.getFirestore(app);
           mode = "firebase";
 
-          // 실시간 반영: 그림/프로필/설정/댓글 구독
-          fs.onSnapshot(fs.collection(db, "drawings"), () => notify());
-          fs.onSnapshot(fs.doc(db, "meta", "profiles"), () => notify());
-          fs.onSnapshot(fs.doc(db, "meta", "settings"), () => notify());
-          fs.onSnapshot(fs.collection(db, "comments"), () => notify());
+          // 실시간 반영: 그림/프로필/설정/댓글 구독 (오류가 나도 앱은 계속 동작)
+          const warn = (name) => (err) =>
+            console.warn(`${name} 구독 실패 — Firestore 규칙을 확인하세요 (README 참고)`, err);
+          fs.onSnapshot(
+            fs.collection(db, "drawings"),
+            (snap) => {
+              cacheDrawings = snap.docs.map((d) => d.data());
+              notify();
+            },
+            warn("drawings")
+          );
+          fs.onSnapshot(fs.doc(db, "meta", "profiles"), () => notify(), warn("profiles"));
+          fs.onSnapshot(
+            fs.doc(db, "meta", "settings"),
+            (snap) => {
+              cacheSettings = snap.exists() ? snap.data() : {};
+              notify();
+            },
+            warn("settings")
+          );
+          fs.onSnapshot(
+            fs.collection(db, "comments"),
+            (snap) => {
+              cacheComments = snap.docs.map((d) => d.data());
+              notify();
+            },
+            warn("comments")
+          );
           // 실시간 이벤트(밥/쓰다듬기): 새 문서만 골라 콜백
-          fs.onSnapshot(fs.collection(db, "events"), (snap) => {
-            snap.docChanges().forEach((ch) => {
-              if (ch.type !== "added") return;
-              const d = ch.doc.data();
-              if (d.client === CLIENT_ID) return; // 내가 보낸 건 이미 반영됨
-              if (Date.now() - (d.createdAt || 0) > 15000) return; // 오래된 것 무시
-              eventCallbacks.forEach((cb) => cb(d));
-            });
-          });
+          fs.onSnapshot(
+            fs.collection(db, "events"),
+            (snap) => {
+              snap.docChanges().forEach((ch) => {
+                if (ch.type !== "added") return;
+                const d = ch.doc.data();
+                if (d.client === CLIENT_ID) return; // 내가 보낸 건 이미 반영됨
+                if (Date.now() - (d.createdAt || 0) > 15000) return; // 오래된 것 무시
+                eventCallbacks.forEach((cb) => cb(d));
+              });
+            },
+            warn("events")
+          );
           return;
         } catch (e) {
           console.warn("Firebase 초기화 실패 — 로컬 모드로 전환합니다.", e);
@@ -96,11 +129,17 @@ const Storage = (() => {
       changeCallbacks.push(cb);
     },
 
-    // 모든 그림 목록
+    // 모든 그림 목록 (구독 캐시 우선 — 읽기 실패해도 앱이 죽지 않음)
     async listDrawings() {
       if (mode === "firebase") {
-        const snap = await fs.getDocs(fs.collection(db, "drawings"));
-        return snap.docs.map((d) => d.data());
+        if (cacheDrawings) return cacheDrawings;
+        try {
+          const snap = await fs.getDocs(fs.collection(db, "drawings"));
+          return snap.docs.map((d) => d.data());
+        } catch (e) {
+          console.warn("drawings 읽기 실패", e);
+          return [];
+        }
       }
       return localList();
     },
@@ -131,8 +170,14 @@ const Storage = (() => {
     // ---------- 공유 설정 (예: 주제 전환 시각) ----------
     async getSettings() {
       if (mode === "firebase") {
-        const snap = await fs.getDoc(fs.doc(db, "meta", "settings"));
-        return snap.exists() ? snap.data() : {};
+        if (cacheSettings) return cacheSettings;
+        try {
+          const snap = await fs.getDoc(fs.doc(db, "meta", "settings"));
+          return snap.exists() ? snap.data() : {};
+        } catch (e) {
+          console.warn("settings 읽기 실패", e);
+          return {};
+        }
       }
       try {
         return JSON.parse(localStorage.getItem("aquarium_settings_v1")) || {};
@@ -154,8 +199,14 @@ const Storage = (() => {
     // ---------- 댓글 ----------
     async listComments() {
       if (mode === "firebase") {
-        const snap = await fs.getDocs(fs.collection(db, "comments"));
-        return snap.docs.map((d) => d.data());
+        if (cacheComments) return cacheComments; // 구독 캐시: 내 댓글이 즉시 반영됨
+        try {
+          const snap = await fs.getDocs(fs.collection(db, "comments"));
+          return snap.docs.map((d) => d.data());
+        } catch (e) {
+          console.warn("comments 읽기 실패 — Firestore 규칙 확인 필요", e);
+          return [];
+        }
       }
       try {
         return JSON.parse(localStorage.getItem("aquarium_comments_v1")) || [];

@@ -2,7 +2,7 @@
 
 const App = (() => {
   const AUTH_KEY = "aquarium_login_v1"; // 자동 로그인용 { user, hash }
-  const TOPIC_EPOCH = new Date(2026, 0, 1); // 이 날짜 기준으로 주제가 순서대로 순환
+  const KST_OFFSET = 9 * 3600 * 1000; // 앱의 "하루"는 항상 한국시간 기준
 
   // 두 사람 고정 계정: 아이디로 누구인지 판별
   const USERS = { A: "자성", B: "지수" };
@@ -24,6 +24,9 @@ const App = (() => {
     aquariumDate: "all",
     todayKey: null,
     editing: false, // 당일 그림 수정 중
+    comments: [],
+    rolloverHour: 6, // 주제가 바뀌는 시각 (KST, 공유 설정)
+    modalDrawing: null,
   };
 
   // 유형별 안내 문구 (수족관에서 어떻게 움직이는지)
@@ -39,11 +42,11 @@ const App = (() => {
   };
 
   // ---------- 날짜 / 주제 ----------
-  function dateKey(d = new Date()) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+  // 기기 시간대와 무관하게, 한국시간(KST) 기준으로 "앱의 오늘"을 계산.
+  // 전환 시각(rolloverHour, 기본 오전 6시)이 지나야 다음 날로 넘어간다.
+  function appDayKey() {
+    const shifted = new Date(Date.now() + KST_OFFSET - state.rolloverHour * 3600 * 1000);
+    return shifted.toISOString().slice(0, 10);
   }
 
   // 테스트용 주제 이동량 (Cmd/Ctrl+T 또는 주제 카드 3연타로 변경, 이 기기에서만 적용)
@@ -51,7 +54,7 @@ const App = (() => {
 
   function topicForDate(key) {
     const [y, m, d] = key.split("-").map(Number);
-    const days = Math.round((new Date(y, m - 1, d) - TOPIC_EPOCH) / 86400000) + topicOffset;
+    const days = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(2026, 0, 1)) / 86400000) + topicOffset;
     const idx = ((days % TOPICS.length) + TOPICS.length) % TOPICS.length;
     return TOPICS[idx];
   }
@@ -230,7 +233,7 @@ const App = (() => {
     state.aquariumDate = sel.value;
 
     if (state.aquariumDate !== "all") list = list.filter((d) => d.date === state.aquariumDate);
-    Aquarium.render(list);
+    Aquarium.render(list, state.comments);
   }
 
   // ---------- 도감 탭 ----------
@@ -248,20 +251,95 @@ const App = (() => {
     sel.options[2].textContent = displayName("B");
   }
 
-  // ---------- 모달 ----------
+  // ---------- 모달 (그림 확대 + 댓글) ----------
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${mm}.${dd} ${hh}:${mi}`;
+  }
+
+  function renderModalComments(d) {
+    const list = document.getElementById("comment-list");
+    const items = state.comments
+      .filter((c) => c.drawingId === d.id)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    list.innerHTML = items.length
+      ? items
+          .map(
+            (c) => `
+        <div class="comment-item">
+          <span class="author-chip ${c.by === "A" ? "chip-a" : "chip-b"}">${escapeHtml(displayName(c.by))}</span>
+          <span class="comment-text">${escapeHtml(c.text)}</span>
+          <span class="comment-time">${fmtTime(c.createdAt)}</span>
+        </div>`
+          )
+          .join("")
+      : '<p class="comment-empty">아직 댓글이 없어요. 첫 마디를 남겨보세요!</p>';
+    list.scrollTop = list.scrollHeight;
+  }
+
+  async function submitComment(e) {
+    e.preventDefault();
+    const input = document.getElementById("comment-input");
+    const text = input.value.trim();
+    if (!text || !state.modalDrawing || !state.me) return;
+    const rec = { drawingId: state.modalDrawing.id, text, by: state.me, createdAt: Date.now() };
+    input.value = "";
+    state.comments.push(rec); // 낙관적 반영 (실시간 구독이 곧 최신화)
+    renderModalComments(state.modalDrawing);
+    try {
+      await Storage.addComment(rec);
+    } catch {
+      UI.toast("댓글 저장에 실패했어요. 다시 시도해주세요.");
+    }
+  }
+
   function openDrawingModal(d) {
     const modal = document.getElementById("modal");
     document.getElementById("modal-img").src = d.image;
     document.getElementById("modal-topic").textContent = d.topic;
     document.getElementById("modal-meta").textContent =
       `${d.date} · ${displayName(d.user)}${d.user === state.me ? " (나)" : ""} 그림`;
+    state.modalDrawing = d;
+    renderModalComments(d);
     modal.hidden = false;
     document.body.classList.add("modal-open");
   }
 
   function closeModal() {
     document.getElementById("modal").hidden = true;
+    state.modalDrawing = null;
     document.body.classList.remove("modal-open");
+  }
+
+  // ---------- 설정 모달 ----------
+  function openSettings() {
+    const sel = document.getElementById("rollover-select");
+    sel.innerHTML = Array.from({ length: 24 }, (_, h) => {
+      const label = h < 12 ? `오전 ${h === 0 ? 12 : h}시` : `오후 ${h === 12 ? 12 : h - 12}시`;
+      return `<option value="${h}">${label} (KST)</option>`;
+    }).join("");
+    sel.value = String(state.rolloverHour);
+    document.getElementById("settings-modal").hidden = false;
+  }
+
+  function closeSettings() {
+    document.getElementById("settings-modal").hidden = true;
+  }
+
+  async function saveSettings() {
+    const h = Number(document.getElementById("rollover-select").value);
+    try {
+      await Storage.saveSettings({ rolloverHour: h });
+      closeSettings();
+      await refresh();
+      UI.toast(`이제 주제가 한국시간 ${h}시에 바뀌어요 (두 사람 모두 적용)`);
+    } catch {
+      UI.toast("설정 저장에 실패했어요.");
+    }
   }
 
   // ---------- 탭 ----------
@@ -388,16 +466,22 @@ const App = (() => {
 
   // ---------- 데이터 새로고침 ----------
   async function refresh() {
+    const settings = await Storage.getSettings();
+    const rh = Number(settings.rolloverHour);
+    state.rolloverHour = Number.isFinite(rh) && rh >= 0 && rh <= 23 ? rh : 6;
+    state.todayKey = appDayKey();
     state.drawings = await Storage.listDrawings();
+    state.comments = await Storage.listComments();
     state.names = { ...USERS };
     updateHeader();
     switchTab(state.tab); // 현재 탭 다시 그리기
+    if (state.modalDrawing) renderModalComments(state.modalDrawing);
   }
 
   // ---------- 초기화 ----------
   async function init() {
-    state.todayKey = dateKey();
     await Storage.init();
+    state.todayKey = appDayKey();
     DrawingCanvas.init();
 
     document.querySelectorAll(".tab-btn").forEach((b) => {
@@ -441,8 +525,24 @@ const App = (() => {
       state.dogamWho = e.target.value;
       renderDogam();
     });
-    document.getElementById("btn-switch-user").addEventListener("click", logout);
+    document.getElementById("btn-switch-user").addEventListener("click", openSettings);
     document.getElementById("login-form").addEventListener("submit", handleLogin);
+    document.getElementById("comment-form").addEventListener("submit", submitComment);
+
+    // 설정 모달
+    document.getElementById("settings-modal").addEventListener("click", (e) => {
+      if (e.target.id === "settings-modal" || e.target.closest(".settings-close")) closeSettings();
+    });
+    document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
+    document.getElementById("btn-logout").addEventListener("click", async () => {
+      closeSettings();
+      await logout();
+    });
+
+    // 상대방의 밥주기/쓰다듬기를 실시간 반영
+    Storage.onEvent((evt) => {
+      if (state.tab === "aquarium") Aquarium.remoteEvent(evt);
+    });
 
     // 페이지 자체의 확대/축소 차단 (캔버스 칸만 자체 줌 지원)
     document.addEventListener("gesturestart", (e) => e.preventDefault()); // iOS 핀치
@@ -459,14 +559,12 @@ const App = (() => {
 
     Storage.onChange(() => refresh());
 
-    // 자정이 지나면 자동으로 새 주제로 전환
+    // 전환 시각(KST)이 지나면 자동으로 새 주제로 전환
     setInterval(() => {
-      const now = dateKey();
-      if (now !== state.todayKey) {
-        state.todayKey = now;
+      if (appDayKey() !== state.todayKey) {
         state.editing = false;
         DrawingCanvas.reset();
-        refresh();
+        refresh(); // refresh 가 todayKey 를 다시 계산
       }
     }, 30 * 1000);
 

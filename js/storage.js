@@ -12,8 +12,10 @@ const Storage = (() => {
 
   let mode = "local";
   let changeCallbacks = [];
+  let eventCallbacks = []; // 실시간 이벤트(밥/쓰다듬기) 수신용
   let fs = null; // firestore module
   let db = null;
+  const CLIENT_ID = Math.random().toString(36).slice(2); // 내 이벤트 에코 방지
 
   function notify() {
     changeCallbacks.forEach((cb) => cb());
@@ -63,9 +65,21 @@ const Storage = (() => {
           db = fs.getFirestore(app);
           mode = "firebase";
 
-          // 실시간 반영: 그림 컬렉션과 프로필 문서를 구독
+          // 실시간 반영: 그림/프로필/설정/댓글 구독
           fs.onSnapshot(fs.collection(db, "drawings"), () => notify());
           fs.onSnapshot(fs.doc(db, "meta", "profiles"), () => notify());
+          fs.onSnapshot(fs.doc(db, "meta", "settings"), () => notify());
+          fs.onSnapshot(fs.collection(db, "comments"), () => notify());
+          // 실시간 이벤트(밥/쓰다듬기): 새 문서만 골라 콜백
+          fs.onSnapshot(fs.collection(db, "events"), (snap) => {
+            snap.docChanges().forEach((ch) => {
+              if (ch.type !== "added") return;
+              const d = ch.doc.data();
+              if (d.client === CLIENT_ID) return; // 내가 보낸 건 이미 반영됨
+              if (Date.now() - (d.createdAt || 0) > 15000) return; // 오래된 것 무시
+              eventCallbacks.forEach((cb) => cb(d));
+            });
+          });
           return;
         } catch (e) {
           console.warn("Firebase 초기화 실패 — 로컬 모드로 전환합니다.", e);
@@ -112,6 +126,70 @@ const Storage = (() => {
         return snap.exists() ? snap.data() : {};
       }
       return localProfiles();
+    },
+
+    // ---------- 공유 설정 (예: 주제 전환 시각) ----------
+    async getSettings() {
+      if (mode === "firebase") {
+        const snap = await fs.getDoc(fs.doc(db, "meta", "settings"));
+        return snap.exists() ? snap.data() : {};
+      }
+      try {
+        return JSON.parse(localStorage.getItem("aquarium_settings_v1")) || {};
+      } catch {
+        return {};
+      }
+    },
+
+    async saveSettings(patch) {
+      if (mode === "firebase") {
+        await fs.setDoc(fs.doc(db, "meta", "settings"), patch, { merge: true });
+        return;
+      }
+      const s = await this.getSettings();
+      localStorage.setItem("aquarium_settings_v1", JSON.stringify({ ...s, ...patch }));
+      notify();
+    },
+
+    // ---------- 댓글 ----------
+    async listComments() {
+      if (mode === "firebase") {
+        const snap = await fs.getDocs(fs.collection(db, "comments"));
+        return snap.docs.map((d) => d.data());
+      }
+      try {
+        return JSON.parse(localStorage.getItem("aquarium_comments_v1")) || [];
+      } catch {
+        return [];
+      }
+    },
+
+    async addComment(rec) {
+      rec = { ...rec, id: rec.createdAt + "_" + Math.random().toString(36).slice(2, 7) };
+      if (mode === "firebase") {
+        await fs.setDoc(fs.doc(db, "comments", rec.id), rec);
+        return rec;
+      }
+      const list = await this.listComments();
+      list.push(rec);
+      localStorage.setItem("aquarium_comments_v1", JSON.stringify(list));
+      notify();
+      return rec;
+    },
+
+    // ---------- 실시간 이벤트 (밥주기/쓰다듬기 동기화) ----------
+    onEvent(cb) {
+      eventCallbacks.push(cb);
+    },
+
+    async sendEvent(evt) {
+      if (mode !== "firebase") return; // 로컬 모드는 한 기기뿐이라 공유 불필요
+      const id = Date.now() + "_" + CLIENT_ID.slice(0, 4) + Math.random().toString(36).slice(2, 6);
+      await fs.setDoc(fs.doc(db, "events", id), {
+        ...evt,
+        client: CLIENT_ID,
+        createdAt: Date.now(),
+      });
     },
 
     // ---------- 웹 푸시 구독 (공유 모드 전용) ----------

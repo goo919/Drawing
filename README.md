@@ -80,6 +80,13 @@ service cloud.firestore {
     match /push_subs/{id} {
       allow read, write: if true; // 웹 푸시 구독 정보
     }
+    match /comments/{id} {
+      allow read, create: if true; // 물고기 댓글
+      allow update, delete: if false;
+    }
+    match /events/{id} {
+      allow read, write: if true; // 밥주기/쓰다듬기 실시간 동기화 (1시간 후 자동 정리)
+    }
   }
 }
 ```

@@ -29,6 +29,8 @@ const Aquarium = (() => {
 
   const LAYERS = { giant: 1, reef: 2, plant: 3, crawler: 4, walker: 4, swim: 5, jelly: 5, surface: 5 };
 
+  const HEART_COLORS = ["#ffb3c6", "#e0b3ff", "#a8d8ff", "#b8f0d0", "#ffd9a8"]; // 파스텔 하트
+
   let tank = null;
   let actors = [];
   let foods = [];
@@ -108,8 +110,26 @@ const Aquarium = (() => {
     return result;
   }
 
+  // ---------- 쓰다듬기 ----------
+  function spawnHeart(a) {
+    const el = document.createElement("span");
+    el.className = "pet-heart";
+    el.textContent = "♥";
+    el.style.color = HEART_COLORS[Math.floor(Math.random() * HEART_COLORS.length)];
+    el.style.left = a.x + a.size / 2 + rand(-12, 12) + "px";
+    el.style.top = (a.ry ?? a.baseY) - 4 + "px";
+    tank.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  }
+
+  function petActor(a, broadcast) {
+    spawnHeart(a);
+    a.petUntil = performance.now() + 700; // 몸을 살짝 흔드는 반응
+    if (broadcast) Storage.sendEvent({ type: "pet", drawingId: a.drawingId }).catch(() => {});
+  }
+
   // ---------- 배우(그림) 생성 ----------
-  async function addActor(drawing) {
+  async function addActor(drawing, commentTexts) {
     const type = SIZES[drawing.type] ? drawing.type : "swim";
     const cropped = await croppedImage(drawing);
 
@@ -121,7 +141,6 @@ const Aquarium = (() => {
     img.draggable = false;
     el.appendChild(img);
     el.style.zIndex = LAYERS[type];
-    el.addEventListener("click", () => App.openDrawingModal(drawing));
     tank.appendChild(el);
 
     let size = rand(...SIZES[type]); // 가로 폭
@@ -137,6 +156,7 @@ const Aquarium = (() => {
 
     const a = {
       el, type, size, h,
+      drawingId: drawing.id,
       x: rand(0, Math.max(1, W - size)),
       baseY: rand(20, Math.max(21, floorY - h - 30)),
       vx: rand(16, 40) * (Math.random() < 0.5 ? -1 : 1),
@@ -150,7 +170,40 @@ const Aquarium = (() => {
       nextLook: 0,
       target: null,
       flip: 1,
+      ry: 0,
+      petUntil: 0,
     };
+    a.ry = a.baseY;
+
+    // 탭 = 쓰다듬기, 빠르게 두 번 탭 = 자세히 보기
+    el.addEventListener("click", () => {
+      const now = Date.now();
+      if (a.tapTimer && now - (a.lastTap || 0) < 320) {
+        clearTimeout(a.tapTimer);
+        a.tapTimer = null;
+        App.openDrawingModal(drawing);
+      } else {
+        a.lastTap = now;
+        a.tapTimer = setTimeout(() => {
+          a.tapTimer = null;
+          petActor(a, true);
+        }, 320);
+      }
+    });
+
+    // 댓글 말풍선 — 물고기를 따라다니고, 여러 개면 주기적으로 랜덤 전환
+    if (commentTexts && commentTexts.length) {
+      const bEl = document.createElement("div");
+      bEl.className = "say-bubble";
+      tank.appendChild(bEl);
+      a.bubble = {
+        el: bEl,
+        texts: commentTexts,
+        idx: Math.floor(Math.random() * commentTexts.length),
+        nextSwitch: performance.now() + rand(6000, 11000),
+      };
+      bEl.textContent = commentTexts[a.bubble.idx];
+    }
 
     // 유형별 초기 배치
     if (type === "walker" || type === "crawler" || type === "reef" || type === "plant") {
@@ -279,6 +332,7 @@ const Aquarium = (() => {
     a.baseY = Math.max(4, Math.min(maxY, a.baseY));
     bounce(a);
     const y = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
+    a.ry = y;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
   }
 
@@ -289,6 +343,7 @@ const Aquarium = (() => {
     a.flip = a.vx < 0 ? -1 : 1;
     const y = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
     const pulse = 1 + Math.sin(t / 480 + a.phase) * 0.035; // 몽글몽글 맥동
+    a.ry = y;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip}) scale(${pulse})`;
   }
 
@@ -311,6 +366,7 @@ const Aquarium = (() => {
       a.flip = a.vx < 0 ? -1 : 1;
       bounce(a);
       const y = a.footY - a.h + Math.sin(t / 320 + a.phase) * 1.5; // 뒤뚱뒤뚱
+      a.ry = y;
       a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
     } else if (a.state === "swimup") {
       const done = ease2D(a, a.swimTarget.x, a.swimTarget.y, 22, dt);
@@ -352,17 +408,20 @@ const Aquarium = (() => {
       bounce(a);
     }
     const y = a.footY - a.h;
+    a.ry = y;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
   }
 
   function stepPlant(a, t) {
     const sway = Math.sin((t / 1000) * 0.8 + a.phase) * 3.5;
+    a.ry = a.footY - a.h;
     a.el.style.transformOrigin = "bottom center";
-    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.h}px) rotate(${sway}deg)`;
+    a.el.style.transform = `translate(${a.x}px, ${a.ry}px) rotate(${sway}deg)`;
   }
 
   function stepReef(a) {
-    a.el.style.transform = `translate(${a.x}px, ${a.footY - a.h}px)`;
+    a.ry = a.footY - a.h;
+    a.el.style.transform = `translate(${a.x}px, ${a.ry}px)`;
   }
 
   function stepGiant(a, t, dt) {
@@ -372,6 +431,7 @@ const Aquarium = (() => {
     if (a.vx < 0 && a.x < -a.size - 40) a.x = W + 40;
     a.flip = a.vx < 0 ? -1 : 1;
     const y = a.baseY + Math.sin((t / 1000) * a.bobSpeed + a.phase) * a.bobAmp;
+    a.ry = y;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
   }
 
@@ -394,6 +454,7 @@ const Aquarium = (() => {
 
   function renderEase(a, t) {
     const y = (a.easeY ?? a.baseY) + Math.sin(t / 420 + a.phase) * 2.5;
+    a.ry = y;
     a.el.style.transform = `translate(${a.x}px, ${y}px) scaleX(${a.flip})`;
   }
 
@@ -426,12 +487,37 @@ const Aquarium = (() => {
         case "reef": stepReef(a); break;
         case "giant": stepGiant(a, t, dt); break;
       }
+
+      // 쓰다듬기 반응: 잠깐 몸을 살랑살랑
+      if (a.petUntil > t) {
+        a.el.firstChild.style.transform = `rotate(${Math.sin(t / 55) * 6}deg)`;
+        a.petWiggling = true;
+      } else if (a.petWiggling) {
+        a.el.firstChild.style.transform = "";
+        a.petWiggling = false;
+      }
+
+      // 댓글 말풍선이 물고기를 따라다님 + 주기적으로 다른 댓글로 전환
+      if (a.bubble) {
+        const b = a.bubble;
+        if (b.texts.length > 1 && t > b.nextSwitch) {
+          let next = Math.floor(Math.random() * b.texts.length);
+          if (next === b.idx) next = (next + 1) % b.texts.length;
+          b.idx = next;
+          b.el.textContent = b.texts[next];
+          b.nextSwitch = t + rand(6000, 11000);
+        }
+        const bx = Math.min(W - 10, Math.max(10, a.x + a.size / 2));
+        const by = Math.max(4, a.ry - 6);
+        b.el.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
+      }
     }
     rafId = requestAnimationFrame(tick);
   }
 
   return {
-    render(drawings) {
+    // drawings: 공개된 그림들 / comments: 전체 댓글 목록
+    render(drawings, comments = []) {
       tank = document.getElementById("tank");
       cancelAnimationFrame(rafId);
       tank.innerHTML = "";
@@ -442,10 +528,21 @@ const Aquarium = (() => {
       floorY = H * FLOOR_RATIO;
       makeBubbles();
 
+      // 그림별 댓글 텍스트 모음
+      const commentMap = new Map();
+      for (const c of comments) {
+        if (!commentMap.has(c.drawingId)) commentMap.set(c.drawingId, []);
+        commentMap.get(c.drawingId).push(c.text);
+      }
+
+      // 밥주기: 빈 곳 클릭 → 내 화면에 떨어뜨리고 상대 화면에도 전송 (좌표는 비율로 공유)
       tank.onclick = (e) => {
         if (e.target !== tank) return;
         const rect = tank.getBoundingClientRect();
-        dropFood(e.clientX - rect.left, e.clientY - rect.top);
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        dropFood(x, y);
+        Storage.sendEvent({ type: "food", x: x / W, y: y / H }).catch(() => {});
       };
 
       if (!drawings.length) {
@@ -454,10 +551,21 @@ const Aquarium = (() => {
         empty.textContent = "아직 수족관이 비어 있어요. 둘 다 그림을 제출하면 여기에 나타나요!";
         tank.appendChild(empty);
       } else {
-        drawings.forEach(addActor);
+        drawings.forEach((d) => addActor(d, commentMap.get(d.id)));
       }
       lastTime = 0;
       rafId = requestAnimationFrame(tick);
+    },
+
+    // 상대방이 보낸 실시간 이벤트 반영 (밥 / 쓰다듬기)
+    remoteEvent(evt) {
+      if (!tank || !tank.isConnected) return;
+      if (evt.type === "food" && typeof evt.x === "number") {
+        dropFood(evt.x * W, evt.y * H);
+      } else if (evt.type === "pet" && evt.drawingId) {
+        const a = actors.find((x) => x.drawingId === evt.drawingId);
+        if (a) petActor(a, false);
+      }
     },
 
     stop() {

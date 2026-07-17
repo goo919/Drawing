@@ -593,6 +593,61 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   will-change: transform;
 }
 
+/* 댓글 말풍선 — 물고기를 따라다님 */
+.say-bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 22;
+  max-width: 140px;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 10px 12px 11px 12px;
+  padding: 2px 8px 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  will-change: transform;
+  box-shadow: 2px 2px 0 rgba(17, 17, 17, 0.15);
+}
+.say-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4.5px;
+  width: 7px;
+  height: 7px;
+  background: var(--paper);
+  border-right: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* 쓰다듬기 하트 */
+.pet-heart {
+  position: absolute;
+  z-index: 23;
+  font-size: 19px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  animation: heart-float 1.35s ease-out forwards;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+@keyframes heart-float {
+  0% { opacity: 0; transform: translate(-50%, 4px) scale(0.5); }
+  18% { opacity: 1; transform: translate(-50%, -6px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -38px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-heart { animation-duration: 0.6s; }
+}
+
 .bubble {
   position: absolute;
   bottom: -30px;
@@ -741,6 +796,80 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
 
 .modal-topic { margin-top: 12px; font-size: 1.1rem; font-weight: 800; text-wrap: balance; }
 .modal-meta { color: var(--muted); margin-top: 2px; font-size: 0.85rem; }
+
+/* 모달 댓글 */
+.modal-comments {
+  margin-top: 12px;
+  border-top: 1.5px dashed var(--hair);
+  padding-top: 10px;
+  text-align: left;
+}
+
+.comment-list {
+  max-height: 130px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comment-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.comment-text { flex: 1; min-width: 0; word-break: break-word; }
+.comment-time {
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.comment-empty { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 6px 0; }
+
+.comment-form { display: flex; gap: 6px; margin-top: 10px; }
+.comment-form input {
+  flex: 1;
+  min-width: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.88rem;
+}
+.comment-send {
+  border: 1.5px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  padding: 0 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* 설정 모달 */
+.settings-title { font-size: 1.15rem; font-weight: 800; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.settings-row select {
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--paper);
+  font-size: 0.9rem;
+}
+
+.settings-btn { width: 100%; margin-top: 10px; }
 
 /* ================= 로그인 ================= */
 .login-box h2 { font-size: 1.3rem; font-weight: 800; }

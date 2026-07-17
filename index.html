@@ -133,7 +133,7 @@
         </label>
       </div>
       <div id="tank" class="tank"></div>
-      <p class="hint">빈 곳을 톡 누르면 밥을 줄 수 있어요</p>
+      <p class="hint">빈 곳 톡 = 밥 주기 · 동물 톡 = 쓰다듬기 · 동물 두 번 톡 = 자세히 보기와 댓글</p>
     </section>
 
     <!-- ============ 도감 ============ -->
@@ -180,6 +180,28 @@
       <div class="modal-img-wrap"><img id="modal-img" alt="그림 확대 보기"></div>
       <h3 id="modal-topic" class="modal-topic"></h3>
       <p id="modal-meta" class="modal-meta"></p>
+      <div class="modal-comments">
+        <div id="comment-list" class="comment-list"></div>
+        <form id="comment-form" class="comment-form">
+          <input type="text" id="comment-input" maxlength="80" placeholder="이 친구에게 한마디…" autocomplete="off">
+          <button type="submit" class="comment-send">등록</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설정 모달 -->
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-box settings-box">
+      <button type="button" class="modal-close settings-close" title="닫기" aria-label="닫기">✕</button>
+      <h3 class="settings-title">설정</h3>
+      <label class="settings-row">
+        <span>주제가 바뀌는 시각</span>
+        <select id="rollover-select"></select>
+      </label>
+      <p class="hint">한국시간(KST) 기준이라 어디에 있어도 두 사람에게 똑같이 적용돼요.</p>
+      <button type="button" id="btn-save-settings" class="btn primary settings-btn">저장</button>
+      <button type="button" id="btn-logout" class="btn ghost settings-btn">로그아웃</button>
     </div>
   </div>
 

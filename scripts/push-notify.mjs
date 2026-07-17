@@ -88,12 +88,24 @@ async function todaySubmissions(date) {
     .filter(Boolean);
 }
 
-// ---------- 오늘 날짜/주제 (앱과 동일한 KST 로직) ----------
+// ---------- 오늘 날짜/주제 (앱과 동일: KST + 공유 전환 시각) ----------
+// 전환 시각은 앱 설정 화면에서 바꿀 수 있고 meta/settings 에 저장됨 (기본 오전 6시 KST)
+let rolloverHour = 6;
+try {
+  const s = await fsGet("meta/settings");
+  const v = Number(
+    s?.fields?.rolloverHour?.integerValue ?? s?.fields?.rolloverHour?.doubleValue
+  );
+  if (Number.isFinite(v) && v >= 0 && v <= 23) rolloverHour = v;
+} catch {}
+console.log(`주제 전환 시각: KST ${rolloverHour}시`);
+
 const TOPICS = new Function(readFileSync("js/topics.js", "utf8") + "; return TOPICS;")();
-const kst = new Date(Date.now() + 9 * 3600 * 1000);
-const todayKey = kst.toISOString().slice(0, 10);
+const shifted = new Date(Date.now() + 9 * 3600 * 1000 - rolloverHour * 3600 * 1000);
+const todayKey = shifted.toISOString().slice(0, 10);
 const days = Math.round(
-  (Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - Date.UTC(2026, 0, 1)) / 86400000
+  (Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) -
+    Date.UTC(2026, 0, 1)) / 86400000
 );
 const topic = TOPICS[((days % TOPICS.length) + TOPICS.length) % TOPICS.length];
 
@@ -217,4 +229,37 @@ if (JSON.stringify(state) !== before) {
   console.log("상태 저장 완료");
 } else {
   console.log("보낼 알림 없음");
+}
+
+// ---------- 1시간 지난 실시간 이벤트(밥/쓰다듬기) 청소 ----------
+try {
+  const cutoff = Date.now() - 3600 * 1000;
+  const r = await fetch(`${BASE}:runQuery?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "events" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "createdAt" },
+            op: "LESS_THAN",
+            value: { integerValue: String(cutoff) },
+          },
+        },
+        select: { fields: [{ fieldPath: "__name__" }] },
+        limit: 300,
+      },
+    }),
+  });
+  const rows = await r.json();
+  let cleaned = 0;
+  for (const row of rows) {
+    if (!row.document) continue;
+    await fsDelete("events/" + row.document.name.split("/").pop());
+    cleaned++;
+  }
+  if (cleaned) console.log(`오래된 이벤트 ${cleaned}개 정리`);
+} catch (e) {
+  console.log("이벤트 정리 건너뜀:", e.message);
 }

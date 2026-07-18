@@ -148,12 +148,13 @@
           <select id="aquarium-date-filter"><option value="all">전체 보기</option></select>
         </label>
       </div>
-      <div class="tank-shell">
+      <div id="tank-shell" class="tank-shell">
         <div id="tank" class="tank"></div>
         <!-- 시간대 틴트 + 날씨 파티클 (pointer-events 없음) -->
         <div id="ambience-tint" class="ambience-tint"></div>
         <canvas id="ambience-fx" class="ambience-fx"></canvas>
-        <div id="moon-beam" class="moon-beam" hidden></div>
+        <!-- 보름달: 바다 위 세상 (스윕으로 내려옴) -->
+        <div id="above-world" class="above-world" hidden></div>
         <!-- 상대방 창문 위젯 -->
         <button type="button" id="window-widget" class="window-widget" hidden>
           <span class="ww-row ww-head">

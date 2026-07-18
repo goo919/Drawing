@@ -456,7 +456,8 @@ const App = (() => {
       if (evt && evt.type === "bottle" && localMode && !DEBUG.event) evt = null;
 
       const fullmoon = DEBUG.fullmoon || AquariumEvents.isFullMoon(key);
-      opts.surfaceWorld = DEBUG.fullmoon || (fullmoon && Ambient.phase() === "night");
+      opts.fullMoon = DEBUG.fullmoon || (fullmoon && Ambient.phase() === "night");
+      opts.startAbove = DEBUG.fullmoon; // 디버그 시 바로 위층으로
 
       if (evt && evt.type !== "bottle") {
         opts.event = evt;
@@ -473,8 +474,8 @@ const App = (() => {
 
     Aquarium.render(list, state.comments, opts);
 
-    // 유리병(수중 모드에서만) — 받은 병 + 오늘 작성 가능 여부
-    if (!opts.surfaceWorld) refreshBottles();
+    // 유리병 — 받은 병 + 오늘 작성 가능 여부
+    refreshBottles();
   }
 
   // ---------- 유리병 편지 ----------

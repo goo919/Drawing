@@ -39,7 +39,6 @@ const Aquarium = (() => {
   let W = 0, H = 0, floorY = 0;
   let renderGen = 0; // 렌더 세대 — 이전 렌더의 비동기 잔여 작업이 겹치지 않게 (복제 버그 방지)
   let eventUpdaters = []; // 이벤트 연출(잠수함 등) 프레임 업데이터 — 행동 엔진과 분리
-  let surfaceMode = false; // 보름달 밤: 바다 윗세상 장면
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -766,45 +765,74 @@ const Aquarium = (() => {
   }
 
   // ============================================================
-  // 보름달 밤: 바다 윗세상 장면 (기존 수중 엔진과 완전 분리)
+  // 보름달: 바다 위 세상 (스윕으로 오가는 위층). 아래층=수중은 그대로 유지.
   // ============================================================
-  let surf = null;
-  function renderSurface(drawings, comments) {
-    surfaceMode = true;
-    const waterY = H * 0.8; // 아래 20%만 물
-    // 하늘 + 달 + 멀리 육지/등대
-    const sky = document.createElement("div");
-    sky.className = "surface-sky";
-    const LT = 'fill="none" stroke="#e6ebf0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"';
-    sky.innerHTML = svg(
+  let above = null; // { panel, swimmers, waterY, shown, nextToggle, nextJump }
+  let swipe = null; // 스윕 제스처 상태
+
+  // 하늘/달/등대/육지 — 전부 연필 스케치(무채색). #pencil 필터는 CSS 로 적용됨.
+  function skySVG() {
+    const P = 'fill="none" stroke="#3a3f48" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"';
+    const PT = 'fill="none" stroke="#4a5058" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
+    return svg(
       600, 400,
-      `<circle cx="88" cy="70" r="33" fill="rgba(248,246,235,0.92)" stroke="#f4f4f4" stroke-width="4"/>
-       <circle cx="78" cy="62" r="6" fill="rgba(210,206,190,0.5)"/>
-       <circle cx="98" cy="82" r="4" fill="rgba(210,206,190,0.45)"/>
-       <circle cx="470" cy="60" r="2.4" fill="#eef1f4"/><circle cx="520" cy="110" r="2" fill="#eef1f4"/>
-       <circle cx="300" cy="48" r="2" fill="#eef1f4"/><circle cx="190" cy="140" r="1.8" fill="#eef1f4"/>
-       <!-- 멀리 육지 실루엣 -->
-       <path d="M320 306 q42 -42 92 -34 q30 -36 72 -20 q44 -6 116 16 L600 306 Z"
-         fill="rgba(26,30,40,0.72)" stroke="rgba(230,236,242,0.55)" stroke-width="3" stroke-linejoin="round"/>
-       <!-- 등대 -->
-       <path d="M470 266 l9 -72 q10 -6 20 0 l9 72 Z" ${LT}/>
-       <rect x="474" y="182" width="30" height="16" rx="3" ${LT}/>
-       <path d="M478 182 q11 -12 22 0" ${LT}/>
-       <line x1="489" y1="176" x2="489" y2="168" ${LT}/>
-       <circle class="lh-lamp" cx="489" cy="190" r="7" fill="rgba(255,236,190,0.9)"/>`,
-      "surface-sky-svg"
+      `<!-- 달: 흰색 -->
+       <circle cx="92" cy="72" r="34" fill="#ffffff" stroke="#cfd4da" stroke-width="2.6"/>
+       <path d="M80 60 q8 6 4 16" ${PT}/>
+       <path d="M104 70 q-4 8 -12 8" ${PT}/>
+       <!-- 별(작은 십자 점) -->
+       <path d="M300 46 l0 8 M296 50 l8 0" ${PT}/>
+       <path d="M470 58 l0 6 M467 61 l6 0" ${PT}/>
+       <path d="M200 132 l0 6 M197 135 l6 0" ${PT}/>
+       <!-- 수평선 -->
+       <path d="M0 300 q150 -6 300 0 T600 300" ${PT}/>
+       <!-- 멀리 육지 실루엣(연필) -->
+       <path d="M322 300 q44 -40 92 -32 q30 -34 72 -18 q46 -6 114 14 L600 300 Z"
+         fill="rgba(58,63,72,0.16)" ${P}/>
+       <!-- 등대(연필) -->
+       <path d="M470 266 l8 -66 q11 -7 22 0 l8 66 Z" ${P}/>
+       <path d="M471 244 l26 0 M472 222 l24 0" ${PT}/>
+       <rect x="474" y="184" width="30" height="16" rx="3" ${P}/>
+       <path d="M478 184 q11 -12 22 0" ${P}/>
+       <line x1="489" y1="178" x2="489" y2="170" ${P}/>
+       <circle class="lh-lamp" cx="489" cy="192" r="6.5" fill="#ffffff" stroke="#cfd4da" stroke-width="2"/>`,
+      "above-sky-svg"
     ).outerHTML;
-    tank.appendChild(sky);
+  }
 
-    // 수면 물결선
-    const wave = document.createElement("div");
-    wave.className = "surface-waves";
-    wave.style.top = waterY + "px";
-    tank.appendChild(wave);
-    eventEls.push(sky, wave);
+  // 물결선(연필) SVG를 배경으로 쓰는 div
+  function waveStrip(cls, topPx) {
+    const el = document.createElement("div");
+    el.className = cls;
+    el.style.top = topPx + "px";
+    return el;
+  }
 
-    // 물 밴드 안의 헤엄이 (전부 동시에 안 보이고 랜덤하게 등장/퇴장, 가끔 첨벙)
-    surf = { swimmers: [], waterY, nextToggle: 0, nextJump: 0 };
+  function buildAboveWorld(drawings) {
+    const shell = document.getElementById("above-world");
+    if (!shell) return;
+    shell.innerHTML = "";
+    shell.hidden = false;
+    shell.classList.remove("shown");
+
+    const waterY = H * 0.76; // 위층 화면에서 아래 24%가 바다
+
+    const sky = document.createElement("div");
+    sky.className = "above-sky";
+    sky.style.height = waterY + "px";
+    sky.innerHTML = skySVG();
+    shell.appendChild(sky);
+
+    // 바다(아래 밴드) + 수면 물결선
+    const sea = document.createElement("div");
+    sea.className = "above-sea";
+    sea.style.top = waterY + "px";
+    shell.appendChild(sea);
+    shell.appendChild(waveStrip("above-waveline", waterY - 5)); // 경계 물결선
+    shell.appendChild(waveStrip("above-surfwave", waterY + 16)); // 수면 위 잔물결
+
+    above = { panel: shell, swimmers: [], waterY, shown: false, nextToggle: 0, nextJump: 0 };
+
     Promise.all(
       drawings.map(async (d) => {
         const cropped = await croppedImage(d);
@@ -814,36 +842,40 @@ const Aquarium = (() => {
         img.src = cropped.src;
         img.draggable = false;
         el.appendChild(img);
-        el.style.zIndex = 5;
+        el.style.zIndex = 4;
         el.hidden = true;
         el.addEventListener("click", () => App.openDrawingModal(d));
-        tank.appendChild(el);
-        let w = 70 + Math.random() * 40;
+        sea.appendChild(el);
+        let w = 66 + Math.random() * 34;
         let hh = w * cropped.ratio;
-        if (hh > (H - waterY) * 0.8) { const k = ((H - waterY) * 0.8) / hh; w *= k; hh *= k; }
+        const bandH = H - waterY;
+        if (hh > bandH * 0.8) { const k = (bandH * 0.8) / hh; w *= k; hh *= k; }
         el.style.width = w + "px";
-        surf.swimmers.push({
-          el, drawing: d, w, h: hh,
+        above.swimmers.push({
+          el, w, h: hh,
           x: rand(0, Math.max(1, W - w)),
           y: waterY + rand(6, Math.max(8, H - waterY - hh - 6)),
-          vx: rand(12, 26) * (Math.random() < 0.5 ? -1 : 1),
+          vx: rand(12, 24) * (Math.random() < 0.5 ? -1 : 1),
           bob: rand(0, 6.28),
-          visible: false, jumping: false, jt: 0, jx: 0, jpeak: 0, jdur: 0, baseY: 0,
+          visible: false, jumping: false, jt: 0, jx: 0, jpeak: 0, jdur: 0,
         });
       })
     ).then(() => {
-      // 처음엔 절반쯤만 보이게
-      surf.swimmers.forEach((s) => { if (Math.random() < 0.45) showSwimmer(s); });
+      // 처음엔 일부만 (중복/과밀 방지)
+      const n = above.swimmers.length;
+      const showCount = Math.max(1, Math.round(n * 0.4));
+      [...above.swimmers].sort(() => Math.random() - 0.5).slice(0, showCount).forEach(showSwimmer);
     });
 
-    lastTime = 0;
-    rafId = requestAnimationFrame(tickSurface);
+    // 위층 업데이터를 메인 tick 에 얹음
+    eventUpdaters.push(updateAbove);
   }
 
   function showSwimmer(s) {
+    if (!above) return;
     s.visible = true;
     s.el.hidden = false;
-    s.y = surf.waterY + rand(6, Math.max(8, H - surf.waterY - s.h - 6));
+    s.y = above.waterY + rand(6, Math.max(8, H - above.waterY - s.h - 6));
     s.x = Math.min(Math.max(s.x, 0), Math.max(0, W - s.w));
   }
   function hideSwimmer(s) {
@@ -851,7 +883,6 @@ const Aquarium = (() => {
     s.visible = false;
     s.el.hidden = true;
   }
-
   function startJump(s) {
     s.jumping = true;
     s.visible = true;
@@ -859,78 +890,116 @@ const Aquarium = (() => {
     s.jt = 0;
     s.jdur = rand(1.1, 1.7);
     s.jx = rand(s.w, W - s.w);
-    s.baseY = surf.waterY;
-    s.jpeak = rand(surf.waterY * 0.35, surf.waterY * 0.7); // 튀어오르는 높이
-    s.vx = (s.jx < W / 2 ? 1 : -1) * rand(20, 40);
-    splash(s.jx, surf.waterY);
+    s.jpeak = rand(above.waterY * 0.3, above.waterY * 0.6);
+    s.vx = (s.jx < W / 2 ? 1 : -1) * rand(18, 36);
+    splash(s.jx, above.waterY);
   }
-
   function splash(x, y) {
+    if (!above) return;
     const sp = document.createElement("div");
-    sp.className = "surface-splash";
+    sp.className = "above-splash";
     sp.style.left = x + "px";
     sp.style.top = y + "px";
-    tank.appendChild(sp);
+    above.panel.appendChild(sp);
     setTimeout(() => sp.remove(), 900);
   }
 
-  function tickSurface(t) {
-    const dt = Math.min(0.05, (t - lastTime) / 1000 || 0);
-    lastTime = t;
-    if (surf) {
-      // 랜덤 등장/퇴장
-      if (t > surf.nextToggle) {
-        surf.nextToggle = t + rand(1400, 3200);
-        const pool = surf.swimmers.filter((s) => !s.jumping);
-        if (pool.length) {
-          const s = pool[Math.floor(Math.random() * pool.length)];
-          if (s.visible) hideSwimmer(s);
-          else showSwimmer(s);
-        }
-      }
-      // 가끔 첨벙 — 안 보이는 물고기 중에서
-      if (t > surf.nextJump) {
-        surf.nextJump = t + rand(3500, 8000);
-        const hidden = surf.swimmers.filter((s) => !s.visible && !s.jumping);
-        if (hidden.length) startJump(hidden[Math.floor(Math.random() * hidden.length)]);
-      }
-      for (const s of surf.swimmers) {
-        if (s.jumping) {
-          s.jt += dt;
-          const p = s.jt / s.jdur; // 0..1
-          s.x = s.jx + s.vx * s.jt;
-          const arc = Math.sin(Math.min(1, p) * Math.PI);
-          const y = s.baseY - arc * s.jpeak - s.h * 0.5;
-          const rot = (p - 0.5) * 60;
-          s.el.style.transform = `translate(${s.x}px, ${y}px) rotate(${rot}deg)`;
-          if (p >= 1) {
-            s.jumping = false;
-            splash(s.x, surf.waterY);
-            hideSwimmer(s);
-          }
-        } else if (s.visible) {
-          s.x += s.vx * dt;
-          if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx); }
-          else if (s.x > W - s.w) { s.x = W - s.w; s.vx = -Math.abs(s.vx); }
-          const yy = s.y + Math.sin(t / 900 + s.bob) * 4;
-          s.el.style.transform = `translate(${s.x}px, ${yy}px) scaleX(${s.vx < 0 ? -1 : 1})`;
-        }
+  function updateAbove(t, dt) {
+    if (!above) return;
+    if (t > above.nextToggle) {
+      above.nextToggle = t + rand(1600, 3600);
+      const pool = above.swimmers.filter((s) => !s.jumping);
+      if (pool.length) {
+        const s = pool[Math.floor(Math.random() * pool.length)];
+        s.visible ? hideSwimmer(s) : showSwimmer(s);
       }
     }
-    if (window.Ambience) Ambience.frame(t);
-    rafId = requestAnimationFrame(tickSurface);
+    if (t > above.nextJump) {
+      above.nextJump = t + rand(3500, 8000);
+      const hidden = above.swimmers.filter((s) => !s.visible && !s.jumping);
+      if (hidden.length) startJump(hidden[Math.floor(Math.random() * hidden.length)]);
+    }
+    for (const s of above.swimmers) {
+      if (s.jumping) {
+        s.jt += dt;
+        const p = s.jt / s.jdur;
+        s.x = s.jx + s.vx * s.jt;
+        const arc = Math.sin(Math.min(1, p) * Math.PI);
+        const y = above.waterY - arc * s.jpeak - s.h * 0.5;
+        s.el.style.transform = `translate(${s.x}px, ${y}px) rotate(${(p - 0.5) * 60}deg)`;
+        if (p >= 1) { s.jumping = false; splash(s.x, above.waterY); hideSwimmer(s); }
+      } else if (s.visible) {
+        s.x += s.vx * dt;
+        if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx); }
+        else if (s.x > W - s.w) { s.x = W - s.w; s.vx = -Math.abs(s.vx); }
+        const yy = s.y - above.waterY + Math.sin(t / 900 + s.bob) * 4;
+        s.el.style.transform = `translate(${s.x}px, ${yy}px) scaleX(${s.vx < 0 ? -1 : 1})`;
+      }
+    }
+  }
+
+  // ---- 스윕으로 위/아래 세상 오가기 (보름달일 때만 위층 활성) ----
+  function setAboveShown(shown) {
+    if (!above) return;
+    above.shown = shown;
+    above.panel.classList.toggle("shown", shown);
+    document.body.classList.toggle("above-active", shown);
+  }
+
+  function enableSwipe() {
+    const shell = document.getElementById("tank-shell") || tank.parentElement;
+    if (!shell || shell._swipeBound) return;
+    shell._swipeBound = true;
+    shell.addEventListener("pointerdown", (e) => {
+      if (!above) return;
+      swipe = { y0: e.clientY, active: false, moved: false };
+    });
+    shell.addEventListener("pointermove", (e) => {
+      if (!swipe || !above) return;
+      const dy = e.clientY - swipe.y0;
+      if (!swipe.active && Math.abs(dy) > 24) swipe.active = true;
+      if (swipe.active) {
+        swipe.moved = true;
+        // 아래층(수중)에서 아래로 끌면 위층이 내려온다 / 위층에서 위로 끌면 올라간다
+        const base = above.shown ? 0 : -100;
+        let pct = base + (dy / shell.clientHeight) * 100;
+        pct = Math.max(-100, Math.min(0, pct));
+        above.panel.style.transition = "none";
+        above.panel.style.transform = `translateY(${pct}%)`;
+      }
+    });
+    const end = (e) => {
+      if (!swipe || !above) { swipe = null; return; }
+      if (swipe.active) {
+        const dy = e.clientY - swipe.y0;
+        above.panel.style.transition = "";
+        above.panel.style.transform = "";
+        if (!above.shown && dy > 60) setAboveShown(true); // 아래→위(바다 위로)
+        else if (above.shown && dy < -60) setAboveShown(false); // 위→아래(수중으로)
+        else setAboveShown(above.shown);
+      }
+      swipe = null;
+    };
+    shell.addEventListener("pointerup", end);
+    shell.addEventListener("pointercancel", end);
+  }
+
+  function teardownAbove() {
+    const shell = document.getElementById("above-world");
+    if (shell) { shell.hidden = true; shell.innerHTML = ""; shell.classList.remove("shown"); shell.style.transform = ""; }
+    above = null;
+    document.body.classList.remove("above-active", "full-moon");
   }
 
   return {
-    // drawings: 공개된 그림들 / comments: 전체 댓글 / opts: { event, surfaceWorld, memoryPool, treasureOpened, onTreasureOpen }
+    // drawings: 공개된 그림들 / comments: 전체 댓글 / opts: { event, fullMoon, startAbove, memoryPool, treasureOpened, onTreasureOpen }
     render(drawings, comments = [], opts = {}) {
       tank = document.getElementById("tank");
       renderGen += 1;
       const gen = renderGen;
       cancelAnimationFrame(rafId);
       clearEvents();
-      surfaceMode = false;
-      surf = null;
+      teardownAbove();
       tank.innerHTML = "";
       actors = [];
       foods = [];
@@ -938,13 +1007,9 @@ const Aquarium = (() => {
       H = tank.clientHeight;
       floorY = H * FLOOR_RATIO;
 
-      document.body.classList.toggle("surface-world", !!opts.surfaceWorld);
-
-      // 보름달 밤 → 바다 윗세상 장면 (별도 경로)
-      if (opts.surfaceWorld && drawings.length) {
-        renderSurface(drawings, comments);
-        return;
-      }
+      // 같은 그림이 여러 번 들어와도 한 마리만 (중복/복제 방지)
+      const seen = new Set();
+      drawings = drawings.filter((d) => (seen.has(d.id) ? false : seen.add(d.id)));
 
       makeBubbles();
 
@@ -984,6 +1049,17 @@ const Aquarium = (() => {
           spawnTreasure(mem, opts.treasureOpened, opts.onTreasureOpen);
         }
         // bottle 은 app.js 가 setBottles 로 관리
+      }
+
+      // 보름달: 위층(바다 위) 준비 + 스윕 활성 + 수중 상단에 빛 힌트
+      document.body.classList.toggle("full-moon", !!opts.fullMoon);
+      if (opts.fullMoon && drawings.length) {
+        const hint = document.createElement("div");
+        hint.className = "moon-hint";
+        tank.appendChild(hint); // 위에서 빛이 새어드는 힌트 (스윕하면 위층으로)
+        buildAboveWorld(drawings);
+        enableSwipe();
+        if (opts.startAbove) setTimeout(() => setAboveShown(true), 60); // 디버그용
       }
 
       lastTime = 0;
@@ -1028,7 +1104,7 @@ const Aquarium = (() => {
     stop() {
       savePositions();
       cancelAnimationFrame(rafId);
-      document.body.classList.remove("surface-world");
+      teardownAbove();
     },
   };
 })();

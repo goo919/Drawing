@@ -158,5 +158,16 @@ const Push = (() => {
       updateBell();
       maybeShowBanner();
     },
+
+    // 앱이 열려 있을 때 시스템 알림을 직접 띄움 (실시간 이벤트용)
+    async localNotify(title, body) {
+      if (Notification.permission !== "granted") return;
+      try {
+        const r = (await navigator.serviceWorker.getRegistration()) || (await ensureSW());
+        await r.showNotification(title, { body, icon: "icons/icon-192.png", tag: "kiss" });
+      } catch (e) {
+        console.warn("로컬 알림 실패", e);
+      }
+    },
   };
 })();

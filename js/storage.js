@@ -243,6 +243,21 @@ const Storage = (() => {
       });
     },
 
+    // ---------- 쪽 뽀뽀 (상대에게 "빨리 그려" 재촉) ----------
+    // 1) 실시간 events 로 상대 앱이 켜져 있으면 즉시 반응
+    // 2) kisses 큐에 넣어두면 알림 워크플로가 웹 푸시로 발송 (앱이 꺼져 있어도)
+    async sendKiss(fromUser, toUser) {
+      await this.sendEvent({ type: "kiss", from: fromUser, to: toUser });
+      if (mode === "firebase") {
+        const id = Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+        await fs.setDoc(fs.doc(db, "kisses", id), {
+          from: fromUser,
+          to: toUser,
+          createdAt: Date.now(),
+        });
+      }
+    },
+
     // ---------- 웹 푸시 구독 (공유 모드 전용) ----------
     async savePushSub(user, sub) {
       if (mode !== "firebase") throw new Error("공유 모드에서만 알림을 쓸 수 있어요");

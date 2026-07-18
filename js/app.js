@@ -116,7 +116,10 @@ const App = (() => {
       <div class="status-card ${theirs ? "done" : ""}">
         <span class="status-name">${escapeHtml(displayName(partner))}</span>
         <span class="status-text">${theirs ? (mine ? "제출 완료" : "먼저 제출했어요!") : "아직 그리는 중…"}</span>
+        ${theirs ? "" : `<button type="button" class="kiss-btn" id="btn-kiss">💋 뽀뽀로 재촉하기</button>`}
       </div>`;
+    const kissBtn = document.getElementById("btn-kiss");
+    if (kissBtn) kissBtn.addEventListener("click", () => sendKiss(partner));
 
     const drawArea = document.getElementById("draw-area");
     const donePanel = document.getElementById("done-panel");
@@ -166,6 +169,66 @@ const App = (() => {
         document.getElementById("btn-view-mine").addEventListener("click", () => openDrawingModal(mine));
       }
       document.getElementById("btn-edit-mine").addEventListener("click", () => startEdit(mine));
+    }
+  }
+
+  // ---------- 쪽 뽀뽀 (상대에게 빨리 그리라고 재촉) ----------
+  const KISS_COOLDOWN_KEY = "aquarium_last_kiss_v1";
+
+  async function sendKiss(partner) {
+    if (Storage.mode !== "firebase") {
+      UI.toast("뽀뽀 알림은 공유 모드(Firebase)에서만 보낼 수 있어요");
+      return;
+    }
+    const last = Number(localStorage.getItem(KISS_COOLDOWN_KEY) || 0);
+    const waitLeft = 3 * 60 * 1000 - (Date.now() - last);
+    if (waitLeft > 0) {
+      UI.toast(`방금 보냈어요! ${Math.ceil(waitLeft / 60000)}분 뒤에 또 보낼 수 있어요 💗`);
+      return;
+    }
+    const btn = document.getElementById("btn-kiss");
+    if (btn) btn.disabled = true;
+    try {
+      await Storage.sendKiss(state.me, partner);
+      localStorage.setItem(KISS_COOLDOWN_KEY, String(Date.now()));
+      flyKiss();
+      UI.toast(`${displayName(partner)}님에게 뽀뽀를 보냈어요! 💋`);
+    } catch (e) {
+      console.warn("뽀뽀 전송 실패", e);
+      UI.toast("뽀뽀 전송에 실패했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  // 화면을 가로지르는 뽀뽀 애니메이션
+  function flyKiss(fromName) {
+    const el = document.createElement("div");
+    el.className = "kiss-fly";
+    el.textContent = "💋";
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1600);
+    if (fromName) {
+      const label = document.createElement("div");
+      label.className = "kiss-banner";
+      label.textContent = `💋 ${fromName}님이 뽀뽀를 보냈어요! 얼른 오늘 그림을 그려주세요`;
+      document.body.appendChild(label);
+      setTimeout(() => label.classList.add("show"), 20);
+      setTimeout(() => {
+        label.classList.remove("show");
+        setTimeout(() => label.remove(), 400);
+      }, 4000);
+    }
+  }
+
+  // 상대가 보낸 뽀뽀를 받았을 때 (앱이 켜져 있는 경우 즉시)
+  function onKiss(evt) {
+    if (evt.to && evt.to !== state.me) return; // 나에게 온 것만
+    const fromName = displayName(evt.from);
+    flyKiss(fromName);
+    // 앱이 백그라운드면 시스템 알림으로도
+    if (document.hidden) {
+      Push.localNotify("💋 " + fromName + "님의 뽀뽀!", "얼른 오늘 그림을 그려주세요 🎨");
     }
   }
 
@@ -558,8 +621,12 @@ const App = (() => {
       await logout();
     });
 
-    // 상대방의 밥주기/쓰다듬기를 실시간 반영
+    // 상대방의 밥주기/쓰다듬기/뽀뽀를 실시간 반영
     Storage.onEvent((evt) => {
+      if (evt.type === "kiss") {
+        onKiss(evt);
+        return;
+      }
       if (state.tab === "aquarium") Aquarium.remoteEvent(evt);
     });
 

@@ -87,6 +87,9 @@ service cloud.firestore {
     match /events/{id} {
       allow read, write: if true; // 밥주기/쓰다듬기 실시간 동기화 (1시간 후 자동 정리)
     }
+    match /kisses/{id} {
+      allow read, write: if true; // 쪽 뽀뽀 재촉 큐 (발송 후 삭제)
+    }
   }
 }
 ```

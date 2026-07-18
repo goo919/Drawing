@@ -168,6 +168,29 @@ if (process.env.TEST_PUSH === "true") {
   process.exit(process.exitCode || 0);
 }
 
+// ---------- 쪽 뽀뽀 큐 발송 (앱이 꺼져 있어도 도착) ----------
+try {
+  const kissDoc = await fsGet("kisses?pageSize=50");
+  const kisses = (kissDoc?.documents || []).map((d) => ({
+    docPath: "kisses/" + d.name.split("/").pop(),
+    from: d.fields?.from?.stringValue,
+    to: d.fields?.to?.stringValue,
+  }));
+  for (const k of kisses) {
+    if (k.to === "A" || k.to === "B") {
+      console.log(`뽀뽀 발송: ${USERS[k.from] || k.from} → ${USERS[k.to] || k.to}`);
+      await notify([k.to], {
+        title: `💋 ${USERS[k.from] || k.from}님의 뽀뽀!`,
+        body: "얼른 오늘 그림을 그려주세요 🎨",
+        tag: "kiss-" + k.docPath,
+      });
+    }
+    await fsDelete(k.docPath); // 발송(또는 무효)했으면 큐에서 제거
+  }
+} catch (e) {
+  console.log("뽀뽀 큐 처리 건너뜀:", e.message);
+}
+
 // ---------- 상태 읽기 (중복 발송 방지) ----------
 const stateDoc = await fsGet("meta/notify_state");
 let state = {};

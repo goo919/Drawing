@@ -37,6 +37,7 @@ const Aquarium = (() => {
   let rafId = null;
   let lastTime = 0;
   let W = 0, H = 0, floorY = 0;
+  let renderGen = 0; // 렌더 세대 — 이전 렌더의 비동기 잔여 작업이 겹치지 않게 (복제 버그 방지)
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -171,9 +172,11 @@ const Aquarium = (() => {
   }
 
   // ---------- 배우(그림) 생성 ----------
-  async function addActor(drawing, commentTexts) {
+  async function addActor(drawing, commentTexts, gen) {
     const type = SIZES[drawing.type] ? drawing.type : "swim";
     const cropped = await croppedImage(drawing);
+    // 크롭(비동기)이 끝나기 전에 수족관이 다시 그려졌다면 이 작업은 폐기
+    if (gen !== renderGen) return;
     // 이 그림 고유의 고정 난수 (크기·성격이 매번 같음)
     const sr = seededRand(drawing.id);
     const srand = (a, b) => a + sr() * (b - a);
@@ -602,6 +605,8 @@ const Aquarium = (() => {
     // drawings: 공개된 그림들 / comments: 전체 댓글 목록
     render(drawings, comments = []) {
       tank = document.getElementById("tank");
+      renderGen += 1;
+      const gen = renderGen;
       cancelAnimationFrame(rafId);
       tank.innerHTML = "";
       actors = [];
@@ -634,7 +639,7 @@ const Aquarium = (() => {
         empty.textContent = "아직 수족관이 비어 있어요. 둘 다 그림을 제출하면 여기에 나타나요!";
         tank.appendChild(empty);
       } else {
-        drawings.forEach((d) => addActor(d, commentMap.get(d.id)));
+        drawings.forEach((d) => addActor(d, commentMap.get(d.id), gen));
       }
       lastTime = 0;
       rafId = requestAnimationFrame(tick);

@@ -1,6 +1,7 @@
 // 앱 메인 로직: 오늘의 주제, 비공개 규칙, 탭 전환, 프로필, 모달
 
 const App = (() => {
+  const LOAD_START = Date.now(); // 로딩 화면 최소 표시 시간 계산용
   const AUTH_KEY = "aquarium_login_v1"; // 자동 로그인용 { user, hash }
   const KST_OFFSET = 9 * 3600 * 1000; // 앱의 "하루"는 항상 한국시간 기준
 
@@ -292,8 +293,15 @@ const App = (() => {
     renderModalComments(state.modalDrawing);
     try {
       await Storage.addComment(rec);
-    } catch {
-      UI.toast("댓글 저장에 실패했어요. 다시 시도해주세요.");
+    } catch (e) {
+      console.warn("댓글 저장 실패", e);
+      const denied =
+        e && (e.code === "permission-denied" || /permission|denied/i.test(e.message || ""));
+      UI.toast(
+        denied
+          ? "Firestore 규칙이 댓글을 막고 있어요 — README의 최신 규칙으로 교체해주세요"
+          : "댓글 저장 실패: " + (e?.code || e?.message || "알 수 없는 오류")
+      );
     }
   }
 
@@ -583,7 +591,20 @@ const App = (() => {
     await refresh();
     if (!loggedIn) showLogin();
     else Push.init(state.me);
+    hideLoading();
   }
+
+  // 로딩 화면: 데이터가 준비되면 (물이 어느 정도 차오른 뒤) 부드럽게 걷어냄
+  function hideLoading() {
+    const el = document.getElementById("loading-overlay");
+    if (!el || el.classList.contains("done")) return;
+    const wait = Math.max(0, 1400 - (Date.now() - LOAD_START));
+    setTimeout(() => {
+      el.classList.add("done");
+      setTimeout(() => el.remove(), 600);
+    }, wait);
+  }
+  setTimeout(hideLoading, 8000); // 어떤 문제가 생겨도 로딩 화면이 계속 남지 않게
 
   document.addEventListener("DOMContentLoaded", init);
 

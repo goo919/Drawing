@@ -19,6 +19,13 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- 로딩 화면: 물이 밑에서부터 차오르는 애니메이션 -->
+  <div id="loading-overlay" class="loading-overlay" aria-hidden="true">
+    <div class="load-title">우리만의 상상 수족관</div>
+    <div class="load-sub">물 채우는 중…</div>
+    <div class="load-water"><div class="load-wave"></div></div>
+  </div>
+
   <!-- 연필 선 느낌을 내는 SVG 필터 (테두리 전용) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <filter id="pencil" x="-4%" y="-4%" width="108%" height="108%">

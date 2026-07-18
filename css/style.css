@@ -895,7 +895,8 @@ body.full-moon:not(.above-active) #tank::after { opacity: 0.4; }
   top: 0; left: 0; right: 0;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, #6f757e 0%, #878d95 55%, #a7adb4 100%); /* 회색 하늘 */
+  /* 바다(그때 바닷속 색)보다 살짝 밝은 회색 */
+  background: linear-gradient(180deg, #b8bbc0 0%, #c6c9ce 100%);
 }
 .above-sky-svg, .above-sky svg { width: 100%; height: 100%; display: block; filter: url(#pencil); }
 .lh-lamp { animation: lamp-glow 3.4s ease-in-out infinite; transform-origin: center; }
@@ -908,7 +909,8 @@ body.full-moon:not(.above-active) #tank::after { opacity: 0.4; }
   position: absolute;
   left: 0; right: 0; bottom: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #c7cdd4 0%, #dfe4ea 40%, #eef1f4 100%);
+  /* 그때의 바닷속 색 (밤 시간대 틴트가 적용된 수중 톤) */
+  background: linear-gradient(180deg, #a6a9af 0%, #b0b3b8 100%);
 }
 
 /* 경계 물결선 + 수면 위 잔물결 (연필 필터로 손그림 톤) */

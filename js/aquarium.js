@@ -774,16 +774,15 @@ const Aquarium = (() => {
   function skySVG() {
     const P = 'fill="none" stroke="#3a3f48" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"';
     const PT = 'fill="none" stroke="#4a5058" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
+    const ST = 'fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
     return svg(
       600, 400,
-      `<!-- 달: 흰색 -->
+      `<!-- 달: 흰색 (크레이터 없음) -->
        <circle cx="92" cy="72" r="34" fill="#ffffff" stroke="#cfd4da" stroke-width="2.6"/>
-       <path d="M80 60 q8 6 4 16" ${PT}/>
-       <path d="M104 70 q-4 8 -12 8" ${PT}/>
-       <!-- 별(작은 십자 점) -->
-       <path d="M300 46 l0 8 M296 50 l8 0" ${PT}/>
-       <path d="M470 58 l0 6 M467 61 l6 0" ${PT}/>
-       <path d="M200 132 l0 6 M197 135 l6 0" ${PT}/>
+       <!-- 별(흰색 작은 십자) -->
+       <path d="M300 46 l0 8 M296 50 l8 0" ${ST}/>
+       <path d="M470 58 l0 6 M467 61 l6 0" ${ST}/>
+       <path d="M200 132 l0 6 M197 135 l6 0" ${ST}/>
        <!-- 수평선 -->
        <path d="M0 300 q150 -6 300 0 T600 300" ${PT}/>
        <!-- 멀리 육지 실루엣(연필) -->

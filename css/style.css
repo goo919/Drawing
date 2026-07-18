@@ -667,15 +667,108 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   font-size: 0.9rem;
 }
 
+/* 수족관 + 분위기 오버레이/위젯을 담는 껍데기 (render 가 #tank 만 비워도 오버레이는 유지) */
+.tank-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .tank {
   position: relative;
   isolation: isolate;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   background: var(--paper);
   border-radius: 9px;
   cursor: pointer;
+  transition: filter 1.2s ease;
+}
+
+/* ===== 분위기: 시간대 틴트 (상대방 세계) — 원색 없이 절제 ===== */
+.ambience-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 9px;
+  background-color: var(--amb-tint, transparent);
+  transition: background-color 1.2s ease, background-image 1.2s ease;
+}
+body.amb-dawn { --amb-tint: rgba(250, 238, 224, 0.13); }
+body.amb-day { --amb-tint: rgba(255, 255, 255, 0); }
+body.amb-dusk { --amb-tint: rgba(214, 168, 136, 0.16); }
+body.amb-night { --amb-tint: rgba(18, 20, 30, 0.34); }
+/* 눈: 아주 옅은 차가운 회청 톤을 위에 덧입힘 */
+body.amb-snow .ambience-tint {
+  background-image: linear-gradient(rgba(192, 208, 226, 0.16), rgba(192, 208, 226, 0.16));
+}
+/* 흐림: 전체 명도를 살짝 낮춤 */
+body.amb-cloudy .tank { filter: brightness(0.93) contrast(0.97); }
+
+/* 날씨 파티클 캔버스 */
+.ambience-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 9px;
+}
+
+/* 밤: 해파리 은은한 발광 (과하지 않게) */
+body.amb-night .fish-jelly img {
+  filter: drop-shadow(0 0 6px rgba(210, 220, 255, 0.55))
+    drop-shadow(0 0 12px rgba(180, 200, 255, 0.35));
+}
+
+/* ===== 상대방 창문 위젯 ===== */
+.window-widget {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px 12px 10px 12px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(2px);
+  padding: 5px 10px 6px;
+  box-shadow: 2px 2px 0 rgba(17, 17, 17, 0.9);
+  max-width: 60%;
+}
+.window-widget:active { transform: translate(1px, 1px); }
+.ww-row { display: flex; align-items: center; gap: 6px; }
+.ww-name { font-weight: 800; font-size: 0.82rem; white-space: nowrap; }
+.ww-weather { font-size: 0.82rem; white-space: nowrap; }
+.ww-detail {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ww-time { font-variant-numeric: tabular-nums; }
+.ww-date.ahead {
+  color: var(--ink);
+  font-weight: 800;
+  border-bottom: 1.5px solid var(--ink);
+}
+.window-widget.collapsed .ww-detail { display: none; }
+
+/* 보름달 달빛 기둥 (기능 2에서 사용, 기본 숨김) */
+.moon-beam {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 9px;
 }
 /* 연필 테두리 (내용물 위에 겹치는 액자) */
 .tank::before {

@@ -598,6 +598,8 @@ const Aquarium = (() => {
       lastPosSave = t;
       savePositions();
     }
+    // 분위기 연출(시간대 틴트/날씨 파티클)을 같은 RAF 루프에 얹음 (행동 엔진 무관)
+    if (window.Ambience) Ambience.frame(t);
     rafId = requestAnimationFrame(tick);
   }
 

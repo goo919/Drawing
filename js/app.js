@@ -67,6 +67,146 @@ const App = (() => {
     UI.toast("테스트: 주제 변경 → " + topicForDate(state.todayKey).t);
   }
 
+  // ---------- 디버그 파라미터 (?debug_hour=22&debug_weather=rain 등) ----------
+  const DEBUG = (() => {
+    const q = new URLSearchParams(location.search);
+    const hour = q.has("debug_hour") ? Number(q.get("debug_hour")) : null;
+    return {
+      hour: Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : null,
+      weather: q.get("debug_weather"), // clear|cloudy|rain|snow
+    };
+  })();
+
+  // ---------- 분위기: 상대방 세계(시간대 + 날씨) 연동 ----------
+  const Ambient = (() => {
+    const WEATHER_CACHE_KEY = "aquarium_weather_v1";
+    let clockTimer = null;
+    let weatherTimer = null;
+    let started = false;
+    let curWeather = "clear";
+
+    function partnerLoc() {
+      const loc = window.LOCATIONS || {};
+      return loc[window.partnerOf(state.me)] || null;
+    }
+
+    // 상대 현지 시:분 (Intl 로 타임존 변환, 외부 API 불필요)
+    function partnerNow(loc) {
+      const fmt = new Intl.DateTimeFormat("ko-KR", {
+        timeZone: loc.tz,
+        hour: "2-digit", minute: "2-digit", hour12: false,
+        year: "numeric", month: "numeric", day: "numeric", weekday: "short",
+      });
+      const parts = {};
+      for (const p of fmt.formatToParts(new Date())) parts[p.type] = p.value;
+      let hour = Number(parts.hour);
+      if (hour === 24) hour = 0; // ko-KR 가 자정을 24로 주는 경우
+      return {
+        hour,
+        minute: Number(parts.minute),
+        y: Number(parts.year), m: Number(parts.month), d: Number(parts.day),
+        weekday: parts.weekday,
+        dateKey: `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`,
+      };
+    }
+
+    function applyPhase(phase) {
+      document.body.classList.remove("amb-dawn", "amb-day", "amb-dusk", "amb-night");
+      document.body.classList.add("amb-" + phase);
+      if (window.Ambience) Ambience.setPhase(phase);
+    }
+
+    function updateClock() {
+      const loc = partnerLoc();
+      const widget = document.getElementById("window-widget");
+      if (!loc) {
+        if (widget) widget.hidden = true;
+        return;
+      }
+      const now = partnerNow(loc);
+      const hour = DEBUG.hour != null ? DEBUG.hour : now.hour;
+      applyPhase(window.phaseForHour(hour));
+
+      // 위젯 갱신
+      widget.hidden = false;
+      document.getElementById("ww-name").textContent = displayName(window.partnerOf(state.me));
+      const ampm = hour < 12 ? "오전" : "오후";
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      document.getElementById("ww-time").textContent =
+        `${ampm} ${h12}:${String(now.minute).padStart(2, "0")}`;
+      const dateEl = document.getElementById("ww-date");
+      dateEl.textContent = `${now.m}/${now.d} (${now.weekday})`;
+      // 내 현지 날짜와 다르면 강조 (시차로 하루 차이)
+      const myKey = new Date().toISOString().slice(0, 10); // 근사(로컬)
+      const myLocalDate = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+      dateEl.classList.toggle("ahead", now.dateKey !== myLocalDate);
+    }
+
+    async function fetchWeather(loc) {
+      // 30분 캐시
+      try {
+        const c = JSON.parse(localStorage.getItem(WEATHER_CACHE_KEY) || "null");
+        if (c && c.key === loc.tz && Date.now() - c.at < 30 * 60 * 1000) return c;
+      } catch {}
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,weather_code`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("weather " + res.status);
+      const data = await res.json();
+      const rec = {
+        key: loc.tz,
+        at: Date.now(),
+        temp: Math.round(data.current?.temperature_2m ?? NaN),
+        weather: window.wmoToWeather(data.current?.weather_code),
+      };
+      try {
+        localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(rec));
+      } catch {}
+      return rec;
+    }
+
+    function applyWeather(weather, temp) {
+      curWeather = weather;
+      if (window.Ambience) Ambience.setWeather(weather);
+      document.body.classList.toggle("amb-cloudy", weather === "cloudy");
+      const wEl = document.getElementById("ww-weather");
+      const icon = (window.WEATHER_ICON || {})[weather] || "";
+      wEl.textContent = Number.isFinite(temp) ? `${icon} ${temp}°` : icon;
+    }
+
+    async function updateWeather() {
+      const loc = partnerLoc();
+      if (!loc) return;
+      if (DEBUG.weather) {
+        applyWeather(DEBUG.weather, NaN);
+        return;
+      }
+      try {
+        const rec = await fetchWeather(loc);
+        applyWeather(rec.weather, rec.temp);
+      } catch (e) {
+        console.warn("날씨 불러오기 실패 — 맑음으로 폴백", e);
+        applyWeather("clear", NaN); // 앱은 계속 동작
+      }
+    }
+
+    return {
+      start() {
+        if (!state.me) return;
+        if (window.Ambience) Ambience.init();
+        updateClock();
+        updateWeather();
+        if (!started) {
+          started = true;
+          clockTimer = setInterval(updateClock, 60 * 1000); // 1분마다 시각/시간대
+          weatherTimer = setInterval(updateWeather, 15 * 60 * 1000); // 15분마다 날씨(캐시 30분)
+        }
+      },
+      refresh() {
+        updateClock(); // 이름/설정 바뀌면 즉시
+      },
+    };
+  })();
+
   // ---------- 파생 데이터 ----------
   function drawingsOf(date) {
     return state.drawings.filter((d) => d.date === date);
@@ -493,6 +633,7 @@ const App = (() => {
       UI.toast(`${USERS[user]}님, 어서 오세요!`);
       await refresh();
       Push.init(state.me);
+      Ambient.start();
     } finally {
       btn.disabled = false;
     }
@@ -550,6 +691,7 @@ const App = (() => {
     updateHeader();
     switchTab(state.tab); // 현재 탭 다시 그리기
     if (state.modalDrawing) renderModalComments(state.modalDrawing);
+    if (state.me) Ambient.refresh(); // 이름/설정 변화 반영
   }
 
   // ---------- 초기화 ----------
@@ -611,6 +753,14 @@ const App = (() => {
     document.getElementById("login-form").addEventListener("submit", handleLogin);
     document.getElementById("comment-form").addEventListener("submit", submitComment);
 
+    // 상대방 창문 위젯 접기/펴기 (상태 기억)
+    const widget = document.getElementById("window-widget");
+    if (localStorage.getItem("aquarium_widget_collapsed") === "1") widget.classList.add("collapsed");
+    widget.addEventListener("click", () => {
+      widget.classList.toggle("collapsed");
+      localStorage.setItem("aquarium_widget_collapsed", widget.classList.contains("collapsed") ? "1" : "0");
+    });
+
     // 설정 모달
     document.getElementById("settings-modal").addEventListener("click", (e) => {
       if (e.target.id === "settings-modal" || e.target.closest(".settings-close")) closeSettings();
@@ -657,7 +807,10 @@ const App = (() => {
     const loggedIn = await tryAutoLogin();
     await refresh();
     if (!loggedIn) showLogin();
-    else Push.init(state.me);
+    else {
+      Push.init(state.me);
+      Ambient.start();
+    }
     hideLoading();
   }
 

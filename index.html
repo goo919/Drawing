@@ -148,7 +148,24 @@
           <select id="aquarium-date-filter"><option value="all">전체 보기</option></select>
         </label>
       </div>
-      <div id="tank" class="tank"></div>
+      <div class="tank-shell">
+        <div id="tank" class="tank"></div>
+        <!-- 시간대 틴트 + 날씨 파티클 (pointer-events 없음) -->
+        <div id="ambience-tint" class="ambience-tint"></div>
+        <canvas id="ambience-fx" class="ambience-fx"></canvas>
+        <div id="moon-beam" class="moon-beam" hidden></div>
+        <!-- 상대방 창문 위젯 -->
+        <button type="button" id="window-widget" class="window-widget" hidden>
+          <span class="ww-row ww-head">
+            <span id="ww-name" class="ww-name"></span>
+            <span id="ww-weather" class="ww-weather"></span>
+          </span>
+          <span id="ww-detail" class="ww-detail">
+            <span id="ww-date" class="ww-date"></span>
+            <span id="ww-time" class="ww-time"></span>
+          </span>
+        </button>
+      </div>
       <p class="hint">빈 곳 톡 = 밥 주기 · 동물을 살살 문지르면 = 쓰다듬기 · 동물 톡 = 자세히 보기와 댓글</p>
     </section>
 
@@ -245,6 +262,8 @@
   <script src="js/ui.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/push.js"></script>
+  <script src="js/locations.js"></script>
+  <script src="js/ambience.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/aquarium.js"></script>
   <script src="js/dogam.js"></script>

@@ -770,6 +770,176 @@ body.amb-night .fish-jelly img {
   pointer-events: none;
   border-radius: 9px;
 }
+
+/* ===== 희귀 이벤트 연출 ===== */
+.evt-svg { width: 100%; height: auto; display: block; }
+.evt-svg svg { width: 100%; height: auto; display: block; }
+
+/* 잠수함 (뒤쪽, 옅게) */
+.evt-submarine {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: 1;
+  opacity: 0.5;
+  pointer-events: none;
+  will-change: transform;
+}
+.evt-peri-bubble {
+  position: absolute;
+  width: 7px; height: 7px;
+  border: 1.5px solid rgba(40, 44, 52, 0.4);
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+  animation: peri-rise 2.4s ease-out forwards;
+}
+@keyframes peri-rise {
+  from { transform: translateY(0) scale(0.6); opacity: 0.7; }
+  to { transform: translateY(-70px) translateX(6px) scale(1); opacity: 0; }
+}
+
+/* 고래 떼 (giant 스타일, 옅은 회색) */
+.evt-whale {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: 1;
+  opacity: 0.34;
+  filter: grayscale(1);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* 보물상자 */
+.evt-chest {
+  position: absolute;
+  z-index: 4;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.evt-chest:active { transform: scale(1.08); }
+.evt-chest.opening { animation: chest-pop 0.5s ease-out; }
+@keyframes chest-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.2) rotate(-3deg); }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+.evt-sparkle {
+  position: absolute;
+  width: 8px; height: 8px;
+  z-index: 24;
+  pointer-events: none;
+  background: radial-gradient(circle, #fff 0 40%, rgba(255,240,190,0.9) 60%, transparent 70%);
+  border-radius: 50%;
+  animation: sparkle-fly 1.1s ease-out forwards;
+}
+@keyframes sparkle-fly {
+  from { transform: translate(0, 0) scale(0.4); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+}
+.evt-memory-tag::before { content: "🎁 "; }
+
+/* 유리병 편지 */
+.evt-bottle {
+  position: absolute;
+  top: 6px;
+  width: 34px;
+  z-index: 6;
+  cursor: pointer;
+  animation: bottle-bob var(--float, 3s) ease-in-out infinite;
+}
+.evt-bottle:active { transform: scale(1.1); }
+.evt-bottle.has-msg::after {
+  content: "!";
+  position: absolute;
+  top: -6px; right: -4px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.66rem;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 15px; height: 15px;
+  display: grid; place-items: center;
+}
+@keyframes bottle-bob {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(5px) rotate(6deg); }
+}
+
+/* ===== 보름달 밤: 바다 윗세상 ===== */
+body.surface-world .tank {
+  background: linear-gradient(180deg,
+    #363b46 0%, #454b55 45%, #5c636e 72%, #7b828d 80%,
+    #dfe6ec 80%, #f2f5f8 100%);
+}
+body.surface-world .tank::after { display: none; } /* 모랫바닥 선 숨김 */
+body.surface-world .ambience-tint { background-color: transparent; } /* 하늘이 이미 어두움 */
+body.surface-world .bubble { display: none; }
+
+.surface-sky {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 80%;
+  z-index: 0;
+  pointer-events: none;
+}
+.surface-sky-svg, .surface-sky svg { width: 100%; height: 100%; display: block; }
+.lh-lamp { animation: lamp-glow 3.5s ease-in-out infinite; transform-origin: center; }
+@keyframes lamp-glow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 230, 170, 0.9)); }
+}
+.surface-waves {
+  position: absolute;
+  left: 0; right: 0;
+  height: 10px;
+  z-index: 4;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg,
+    transparent 0 6px, rgba(40,44,52,0.25) 6px 8px, transparent 8px 20px);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='10' viewBox='0 0 40 10'%3E%3Cpath d='M0 6 Q10 0 20 6 T40 6' fill='none' stroke='%23000' stroke-width='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='10' viewBox='0 0 40 10'%3E%3Cpath d='M0 6 Q10 0 20 6 T40 6' fill='none' stroke='%23000' stroke-width='3'/%3E%3C/svg%3E");
+  -webkit-mask-size: 40px 10px;
+  mask-size: 40px 10px;
+}
+.surface-splash {
+  position: absolute;
+  width: 14px; height: 8px;
+  z-index: 5;
+  pointer-events: none;
+  border: 2px solid rgba(40, 44, 52, 0.4);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: splash-ring 0.85s ease-out forwards;
+}
+@keyframes splash-ring {
+  from { transform: translate(-50%, -50%) scale(0.3); opacity: 0.8; }
+  to { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
+
+/* ===== 유리병 모달 ===== */
+.bottle-title { font-size: 1.15rem; font-weight: 800; }
+.bottle-write { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.bottle-write input {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-family: var(--hand-font);
+  font-size: 1.05rem;
+  text-align: center;
+}
+.bottle-send { width: 100%; }
+.bottle-read { margin-top: 12px; }
+.bottle-msg {
+  font-family: var(--hand-font);
+  font-size: 1.3rem;
+  line-height: 1.4;
+  padding: 14px 10px;
+  border: 1.5px dashed var(--ink);
+  border-radius: 12px;
+  word-break: break-word;
+}
+.bottle-from { color: var(--muted); font-size: 0.85rem; margin: 8px 0 12px; text-align: right; }
+.bottle-read .btn { width: 100%; }
 /* 연필 테두리 (내용물 위에 겹치는 액자) */
 .tank::before {
   content: "";

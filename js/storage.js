@@ -258,6 +258,36 @@ const Storage = (() => {
       }
     },
 
+    // ---------- 유리병 편지 (기존 kisses 구조를 참고) ----------
+    // 실시간(events)으로 즉시 도착 알림 + bottles 컬렉션에 보관(앱 꺼져 있어도)
+    async sendBottle(fromUser, toUser, text) {
+      await this.sendEvent({ type: "bottle", from: fromUser, to: toUser });
+      if (mode !== "firebase") return null;
+      const id = Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+      const rec = { id, from: fromUser, to: toUser, text, createdAt: Date.now() };
+      await fs.setDoc(fs.doc(db, "bottles", id), rec);
+      return rec;
+    },
+
+    // 나에게 온 병 목록
+    async listBottles(toUser) {
+      if (mode !== "firebase") return [];
+      try {
+        const snap = await fs.getDocs(fs.collection(db, "bottles"));
+        return snap.docs.map((d) => d.data()).filter((b) => b.to === toUser);
+      } catch (e) {
+        console.warn("bottles 읽기 실패 — 규칙 확인 필요", e);
+        return [];
+      }
+    },
+
+    async removeBottle(id) {
+      if (mode !== "firebase") return;
+      try {
+        await fs.deleteDoc(fs.doc(db, "bottles", id));
+      } catch {}
+    },
+
     // ---------- 웹 푸시 구독 (공유 모드 전용) ----------
     async savePushSub(user, sub) {
       if (mode !== "firebase") throw new Error("공유 모드에서만 알림을 쓸 수 있어요");

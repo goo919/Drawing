@@ -74,6 +74,8 @@ const App = (() => {
     return {
       hour: Number.isFinite(hour) ? ((hour % 24) + 24) % 24 : null,
       weather: q.get("debug_weather"), // clear|cloudy|rain|snow
+      event: q.get("debug_event"), // submarine|whales|treasure|bottle
+      fullmoon: q.has("debug_fullmoon"),
     };
   })();
 
@@ -110,7 +112,9 @@ const App = (() => {
       };
     }
 
+    let curPhase = "day";
     function applyPhase(phase) {
+      curPhase = phase;
       document.body.classList.remove("amb-dawn", "amb-day", "amb-dusk", "amb-night");
       document.body.classList.add("amb-" + phase);
       if (window.Ambience) Ambience.setPhase(phase);
@@ -203,6 +207,9 @@ const App = (() => {
       },
       refresh() {
         updateClock(); // 이름/설정 바뀌면 즉시
+      },
+      phase() {
+        return DEBUG.hour != null ? window.phaseForHour(DEBUG.hour) : curPhase;
       },
     };
   })();
@@ -437,7 +444,104 @@ const App = (() => {
     state.aquariumDate = sel.value;
 
     if (state.aquariumDate !== "all") list = list.filter((d) => d.date === state.aquariumDate);
-    Aquarium.render(list, state.comments);
+
+    // ---- 희귀 이벤트 / 보름달 판정 (전체 보기일 때만) ----
+    const opts = {};
+    if (state.aquariumDate === "all" && window.AquariumEvents) {
+      const key = state.todayKey;
+      const localMode = Storage.mode !== "firebase";
+      let evt = DEBUG.event
+        ? { type: DEBUG.event, seed: AquariumEvents.hashDate("evt:" + key), startUTCHour: 0 }
+        : AquariumEvents.eventForDay(key, { localMode });
+      if (evt && evt.type === "bottle" && localMode && !DEBUG.event) evt = null;
+
+      const fullmoon = DEBUG.fullmoon || AquariumEvents.isFullMoon(key);
+      opts.surfaceWorld = DEBUG.fullmoon || (fullmoon && Ambient.phase() === "night");
+
+      if (evt && evt.type !== "bottle") {
+        opts.event = evt;
+        if (evt.type === "treasure") {
+          opts.memoryPool = revealedDrawings().filter((d) => d.date !== key);
+          opts.treasureOpened = localStorage.getItem("treasure_" + key) === "1";
+          opts.onTreasureOpen = () => localStorage.setItem("treasure_" + key, "1");
+        }
+      }
+      state._bottleComposable = !!(evt && evt.type === "bottle");
+    } else {
+      state._bottleComposable = false;
+    }
+
+    Aquarium.render(list, state.comments, opts);
+
+    // 유리병(수중 모드에서만) — 받은 병 + 오늘 작성 가능 여부
+    if (!opts.surfaceWorld) refreshBottles();
+  }
+
+  // ---------- 유리병 편지 ----------
+  async function refreshBottles() {
+    if (state.tab !== "aquarium") return;
+    let incoming = [];
+    try {
+      incoming = await Storage.listBottles(state.me);
+    } catch {}
+    Aquarium.setBottles(incoming, state._bottleComposable, {
+      onRead: openBottleRead,
+      onWrite: openBottleCompose,
+    });
+  }
+
+  function openBottleCompose() {
+    const modal = document.getElementById("bottle-modal");
+    modal.querySelector(".bottle-read").hidden = true;
+    modal.querySelector(".bottle-write").hidden = false;
+    document.getElementById("bottle-input").value = "";
+    modal.hidden = false;
+    document.body.classList.add("modal-open");
+    setTimeout(() => document.getElementById("bottle-input").focus(), 50);
+  }
+
+  function openBottleRead(bottle) {
+    const modal = document.getElementById("bottle-modal");
+    modal.querySelector(".bottle-write").hidden = true;
+    const rd = modal.querySelector(".bottle-read");
+    rd.hidden = false;
+    document.getElementById("bottle-msg").textContent = bottle.text;
+    document.getElementById("bottle-from").textContent =
+      `— ${displayName(bottle.from)} 님이 보냄`;
+    modal.hidden = false;
+    document.body.classList.add("modal-open");
+    modal._bottle = bottle;
+  }
+
+  function closeBottle() {
+    document.getElementById("bottle-modal").hidden = true;
+    document.body.classList.remove("modal-open");
+  }
+
+  async function submitBottle(e) {
+    e.preventDefault();
+    const text = document.getElementById("bottle-input").value.trim();
+    if (!text) return;
+    const partner = window.partnerOf(state.me);
+    closeBottle();
+    try {
+      await Storage.sendBottle(state.me, partner, text);
+      UI.toast(`${displayName(partner)}님에게 유리병을 띄워보냈어요 🍾`);
+    } catch {
+      UI.toast("병을 띄우지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
+  }
+
+  async function readBottleDone() {
+    const modal = document.getElementById("bottle-modal");
+    const b = modal._bottle;
+    closeBottle();
+    if (b) {
+      try {
+        await Storage.removeBottle(b.id);
+      } catch {}
+      refreshBottles();
+    }
   }
 
   // ---------- 도감 탭 ----------
@@ -771,14 +875,28 @@ const App = (() => {
       await logout();
     });
 
-    // 상대방의 밥주기/쓰다듬기/뽀뽀를 실시간 반영
+    // 상대방의 밥주기/쓰다듬기/뽀뽀/유리병을 실시간 반영
     Storage.onEvent((evt) => {
       if (evt.type === "kiss") {
         onKiss(evt);
         return;
       }
+      if (evt.type === "bottle") {
+        if (evt.to && evt.to !== state.me) return;
+        UI.toast("🍾 유리병 편지가 도착했어요!");
+        if (state.tab === "aquarium") refreshBottles();
+        return;
+      }
       if (state.tab === "aquarium") Aquarium.remoteEvent(evt);
     });
+
+    // 유리병 모달
+    const bottleModal = document.getElementById("bottle-modal");
+    bottleModal.addEventListener("click", (e) => {
+      if (e.target.id === "bottle-modal" || e.target.closest(".bottle-close")) closeBottle();
+    });
+    document.getElementById("bottle-form").addEventListener("submit", submitBottle);
+    document.getElementById("bottle-read-done").addEventListener("click", readBottleDone);
 
     // 페이지 자체의 확대/축소 차단 (캔버스 칸만 자체 줌 지원)
     document.addEventListener("gesturestart", (e) => e.preventDefault()); // iOS 핀치

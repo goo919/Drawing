@@ -38,6 +38,8 @@ const Aquarium = (() => {
   let lastTime = 0;
   let W = 0, H = 0, floorY = 0;
   let renderGen = 0; // 렌더 세대 — 이전 렌더의 비동기 잔여 작업이 겹치지 않게 (복제 버그 방지)
+  let eventUpdaters = []; // 이벤트 연출(잠수함 등) 프레임 업데이터 — 행동 엔진과 분리
+  let surfaceMode = false; // 보름달 밤: 바다 윗세상 장면
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -67,6 +69,7 @@ const Aquarium = (() => {
   function savePositions() {
     if (!W || !H) return;
     for (const a of actors) {
+      if (a.ephemeral || !a.drawingId) continue; // 이벤트용 임시 액터는 저장 안 함
       posStore[a.drawingId] = {
         nx: a.x / W,
         ny: a.baseY / H,
@@ -257,18 +260,19 @@ const Aquarium = (() => {
       App.openDrawingModal(drawing);
     });
 
-    // 댓글 말풍선 — 물고기를 따라다니고, 여러 개면 주기적으로 랜덤 전환
+    // 댓글 말풍선 — 물고기를 따라다니되, 항상 뜨지 않고 랜덤하게 떴다 사라짐(침묵 구간 포함)
     if (commentTexts && commentTexts.length) {
       const bEl = document.createElement("div");
       bEl.className = "say-bubble";
+      bEl.hidden = true;
       tank.appendChild(bEl);
       a.bubble = {
         el: bEl,
         texts: commentTexts,
-        idx: Math.floor(Math.random() * commentTexts.length),
-        nextSwitch: performance.now() + rand(6000, 11000),
+        showing: false,
+        nextShow: performance.now() + rand(1500, 7000), // 첫 등장까지 잠깐 침묵
+        hideAt: 0,
       };
-      bEl.textContent = commentTexts[a.bubble.idx];
     }
 
     // 유형별 초기 배치 (그림별 고정 시드 → 매번 같은 자리 성향)
@@ -577,21 +581,30 @@ const Aquarium = (() => {
         a.petWiggling = false;
       }
 
-      // 댓글 말풍선이 물고기를 따라다님 + 주기적으로 다른 댓글로 전환
+      // 댓글 말풍선: 랜덤하게 잠깐 떴다가 침묵했다가 (항상 뜨지 않음)
       if (a.bubble) {
         const b = a.bubble;
-        if (b.texts.length > 1 && t > b.nextSwitch) {
-          let next = Math.floor(Math.random() * b.texts.length);
-          if (next === b.idx) next = (next + 1) % b.texts.length;
-          b.idx = next;
-          b.el.textContent = b.texts[next];
-          b.nextSwitch = t + rand(6000, 11000);
+        if (b.showing) {
+          if (t > b.hideAt) {
+            b.showing = false;
+            b.el.hidden = true;
+            b.nextShow = t + rand(5000, 14000); // 침묵
+          } else {
+            const bx = Math.min(W - 10, Math.max(10, a.x + a.size / 2));
+            const by = Math.max(4, a.ry - 6);
+            b.el.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
+          }
+        } else if (t > b.nextShow) {
+          b.el.textContent = b.texts[Math.floor(Math.random() * b.texts.length)];
+          b.el.hidden = false;
+          b.showing = true;
+          b.hideAt = t + rand(2600, 5200);
         }
-        const bx = Math.min(W - 10, Math.max(10, a.x + a.size / 2));
-        const by = Math.max(4, a.ry - 6);
-        b.el.style.transform = `translate(${bx}px, ${by}px) translate(-50%, -100%)`;
       }
     }
+
+    // 이벤트 연출 업데이터 (잠수함 등) — 행동 엔진과 분리된 별도 레이어
+    for (const up of eventUpdaters) up(t, dt);
 
     // 위치를 주기적으로 저장 → 나갔다 들어와도 이어짐
     if (t - lastPosSave > 4000) {
@@ -603,19 +616,336 @@ const Aquarium = (() => {
     rafId = requestAnimationFrame(tick);
   }
 
+  // ============================================================
+  // 희귀 이벤트 연출 (별도 레이어 — 행동 엔진과 분리)
+  // ============================================================
+  const NS = "http://www.w3.org/2000/svg";
+  function svg(w, h, inner, cls) {
+    const s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    s.setAttribute("class", cls || "");
+    s.innerHTML = inner;
+    return s;
+  }
+  const STROKE = 'fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"';
+
+  // 잠수함 통과: 뒤쪽을 천천히 가로지름 (30초)
+  function spawnSubmarine() {
+    const el = document.createElement("div");
+    el.className = "evt-submarine";
+    el.innerHTML = svg(
+      220, 120,
+      `<ellipse cx="110" cy="78" rx="86" ry="30" ${STROKE}/>
+       <path d="M150 54 q28 -6 40 8 q-14 12 -40 8" ${STROKE}/>
+       <rect x="92" y="34" width="30" height="26" rx="6" ${STROKE}/>
+       <line x1="107" y1="34" x2="107" y2="16" ${STROKE}/>
+       <circle cx="107" cy="12" r="6" ${STROKE}/>
+       <circle cx="78" cy="78" r="9" ${STROKE}/>
+       <circle cx="110" cy="78" r="9" ${STROKE}/>
+       <circle cx="142" cy="78" r="9" ${STROKE}/>`,
+      "evt-svg"
+    ).outerHTML;
+    tank.appendChild(el);
+    const size = Math.min(200, W * 0.5);
+    el.style.width = size + "px";
+    const dir = 1;
+    let x = -size - 20;
+    const y = H * (0.32 + Math.random() * 0.2);
+    const speed = (W + size + 40) / 30; // 약 30초에 횡단
+    let bubbleT = 0;
+    const upd = (t, dt) => {
+      x += speed * dir * dt;
+      el.style.transform = `translate(${x}px, ${y + Math.sin(t / 1400) * 6}px)`;
+      // 잠망경 물방울
+      bubbleT -= dt;
+      if (bubbleT <= 0 && x > 0 && x < W) {
+        bubbleT = 0.5 + Math.random() * 0.6;
+        const bb = document.createElement("div");
+        bb.className = "evt-peri-bubble";
+        bb.style.left = x + size * 0.49 + "px";
+        bb.style.top = y + "px";
+        tank.appendChild(bb);
+        setTimeout(() => bb.remove(), 2600);
+      }
+      if (x > W + size + 40) {
+        // 퇴장 후 정리
+        eventUpdaters = eventUpdaters.filter((u) => u !== upd);
+        el.remove();
+      }
+    };
+    eventUpdaters.push(upd);
+    eventEls.push(el);
+  }
+
+  const WHALE_SVG = `<path d="M20 60 q40 -46 120 -34 q40 6 70 30 q-30 6 -70 8 q-36 30 -74 8 q6 -14 2 -20 q-30 4 -48 8 q10 -4 -0 -8z" ${STROKE}/><circle cx="60" cy="52" r="4" fill="#111"/>`;
+  function spawnWhalePod() {
+    const n = 3 + Math.floor(Math.random() * 2); // 3~4마리
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement("div");
+      el.className = "evt-whale";
+      const inner = document.createElement("div");
+      inner.innerHTML = svg(220, 90, WHALE_SVG, "evt-svg").outerHTML;
+      el.appendChild(inner);
+      el.style.zIndex = 1;
+      tank.appendChild(el);
+      const size = 150 + Math.random() * 90;
+      el.style.width = size + "px";
+      actors.push({
+        el, type: "giant", ephemeral: true,
+        size, h: size * 0.4,
+        x: -size - i * (size * 0.7) - rand(20, 60),
+        baseY: H * (0.2 + i * 0.06) + rand(-10, 10),
+        vx: rand(7, 10),
+        bobAmp: rand(4, 8), bobSpeed: rand(0.15, 0.28), phase: rand(0, 6.28),
+        flip: 1, ry: 0, petUntil: 0,
+      });
+    }
+  }
+
+  // 보물상자: 바닥에 나타나 탭하면 과거 그림 하나를 소환
+  function spawnTreasure(memory, alreadyOpened, onOpen) {
+    if (alreadyOpened) {
+      if (memory) summonMemory(memory);
+      return;
+    }
+    const el = document.createElement("div");
+    el.className = "evt-chest";
+    el.innerHTML = svg(
+      90, 70,
+      `<rect x="12" y="30" width="66" height="34" rx="4" ${STROKE}/>
+       <path d="M12 30 q33 -26 66 0" ${STROKE}/>
+       <line x1="12" y1="44" x2="78" y2="44" ${STROKE}/>
+       <rect x="40" y="40" width="10" height="12" rx="2" ${STROKE}/>`,
+      "evt-svg"
+    ).outerHTML;
+    tank.appendChild(el);
+    const size = 74;
+    el.style.width = size + "px";
+    el.style.left = W * (0.3 + Math.random() * 0.4) + "px";
+    el.style.top = floorY + (H - floorY) * 0.35 + "px";
+    eventEls.push(el);
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      el.classList.add("opening");
+      for (let i = 0; i < 8; i++) {
+        const sp = document.createElement("div");
+        sp.className = "evt-sparkle";
+        sp.style.left = parseFloat(el.style.left) + size / 2 + "px";
+        sp.style.top = parseFloat(el.style.top) + "px";
+        sp.style.setProperty("--dx", rand(-40, 40) + "px");
+        sp.style.setProperty("--dy", rand(-60, -20) + "px");
+        tank.appendChild(sp);
+        setTimeout(() => sp.remove(), 1200);
+      }
+      setTimeout(() => el.remove(), 500);
+      if (memory) summonMemory(memory);
+      if (onOpen) onOpen();
+    });
+  }
+
+  async function summonMemory(memory) {
+    // 과거 그림을 임시 액터로 추가 (원래 날짜/주제 소표시)
+    await addActor(memory, null, renderGen);
+    const a = actors[actors.length - 1];
+    if (a) {
+      a.ephemeral = true;
+      const tag = document.createElement("div");
+      tag.className = "evt-memory-tag say-bubble";
+      tag.textContent = `🎁 ${memory.date} · ${memory.topic}`;
+      tag.hidden = true;
+      tank.appendChild(tag);
+      a.bubble = { el: tag, texts: [tag.textContent], showing: false, nextShow: performance.now() + 400, hideAt: 0 };
+    }
+  }
+
+  let eventEls = [];
+  function clearEvents() {
+    eventUpdaters = [];
+    eventEls.forEach((el) => el.remove());
+    eventEls = [];
+  }
+
+  // ============================================================
+  // 보름달 밤: 바다 윗세상 장면 (기존 수중 엔진과 완전 분리)
+  // ============================================================
+  let surf = null;
+  function renderSurface(drawings, comments) {
+    surfaceMode = true;
+    const waterY = H * 0.8; // 아래 20%만 물
+    // 하늘 + 달 + 멀리 육지/등대
+    const sky = document.createElement("div");
+    sky.className = "surface-sky";
+    const LT = 'fill="none" stroke="#e6ebf0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"';
+    sky.innerHTML = svg(
+      600, 400,
+      `<circle cx="88" cy="70" r="33" fill="rgba(248,246,235,0.92)" stroke="#f4f4f4" stroke-width="4"/>
+       <circle cx="78" cy="62" r="6" fill="rgba(210,206,190,0.5)"/>
+       <circle cx="98" cy="82" r="4" fill="rgba(210,206,190,0.45)"/>
+       <circle cx="470" cy="60" r="2.4" fill="#eef1f4"/><circle cx="520" cy="110" r="2" fill="#eef1f4"/>
+       <circle cx="300" cy="48" r="2" fill="#eef1f4"/><circle cx="190" cy="140" r="1.8" fill="#eef1f4"/>
+       <!-- 멀리 육지 실루엣 -->
+       <path d="M320 306 q42 -42 92 -34 q30 -36 72 -20 q44 -6 116 16 L600 306 Z"
+         fill="rgba(26,30,40,0.72)" stroke="rgba(230,236,242,0.55)" stroke-width="3" stroke-linejoin="round"/>
+       <!-- 등대 -->
+       <path d="M470 266 l9 -72 q10 -6 20 0 l9 72 Z" ${LT}/>
+       <rect x="474" y="182" width="30" height="16" rx="3" ${LT}/>
+       <path d="M478 182 q11 -12 22 0" ${LT}/>
+       <line x1="489" y1="176" x2="489" y2="168" ${LT}/>
+       <circle class="lh-lamp" cx="489" cy="190" r="7" fill="rgba(255,236,190,0.9)"/>`,
+      "surface-sky-svg"
+    ).outerHTML;
+    tank.appendChild(sky);
+
+    // 수면 물결선
+    const wave = document.createElement("div");
+    wave.className = "surface-waves";
+    wave.style.top = waterY + "px";
+    tank.appendChild(wave);
+    eventEls.push(sky, wave);
+
+    // 물 밴드 안의 헤엄이 (전부 동시에 안 보이고 랜덤하게 등장/퇴장, 가끔 첨벙)
+    surf = { swimmers: [], waterY, nextToggle: 0, nextJump: 0 };
+    Promise.all(
+      drawings.map(async (d) => {
+        const cropped = await croppedImage(d);
+        const el = document.createElement("div");
+        el.className = "fish";
+        const img = document.createElement("img");
+        img.src = cropped.src;
+        img.draggable = false;
+        el.appendChild(img);
+        el.style.zIndex = 5;
+        el.hidden = true;
+        el.addEventListener("click", () => App.openDrawingModal(d));
+        tank.appendChild(el);
+        let w = 70 + Math.random() * 40;
+        let hh = w * cropped.ratio;
+        if (hh > (H - waterY) * 0.8) { const k = ((H - waterY) * 0.8) / hh; w *= k; hh *= k; }
+        el.style.width = w + "px";
+        surf.swimmers.push({
+          el, drawing: d, w, h: hh,
+          x: rand(0, Math.max(1, W - w)),
+          y: waterY + rand(6, Math.max(8, H - waterY - hh - 6)),
+          vx: rand(12, 26) * (Math.random() < 0.5 ? -1 : 1),
+          bob: rand(0, 6.28),
+          visible: false, jumping: false, jt: 0, jx: 0, jpeak: 0, jdur: 0, baseY: 0,
+        });
+      })
+    ).then(() => {
+      // 처음엔 절반쯤만 보이게
+      surf.swimmers.forEach((s) => { if (Math.random() < 0.45) showSwimmer(s); });
+    });
+
+    lastTime = 0;
+    rafId = requestAnimationFrame(tickSurface);
+  }
+
+  function showSwimmer(s) {
+    s.visible = true;
+    s.el.hidden = false;
+    s.y = surf.waterY + rand(6, Math.max(8, H - surf.waterY - s.h - 6));
+    s.x = Math.min(Math.max(s.x, 0), Math.max(0, W - s.w));
+  }
+  function hideSwimmer(s) {
+    if (s.jumping) return;
+    s.visible = false;
+    s.el.hidden = true;
+  }
+
+  function startJump(s) {
+    s.jumping = true;
+    s.visible = true;
+    s.el.hidden = false;
+    s.jt = 0;
+    s.jdur = rand(1.1, 1.7);
+    s.jx = rand(s.w, W - s.w);
+    s.baseY = surf.waterY;
+    s.jpeak = rand(surf.waterY * 0.35, surf.waterY * 0.7); // 튀어오르는 높이
+    s.vx = (s.jx < W / 2 ? 1 : -1) * rand(20, 40);
+    splash(s.jx, surf.waterY);
+  }
+
+  function splash(x, y) {
+    const sp = document.createElement("div");
+    sp.className = "surface-splash";
+    sp.style.left = x + "px";
+    sp.style.top = y + "px";
+    tank.appendChild(sp);
+    setTimeout(() => sp.remove(), 900);
+  }
+
+  function tickSurface(t) {
+    const dt = Math.min(0.05, (t - lastTime) / 1000 || 0);
+    lastTime = t;
+    if (surf) {
+      // 랜덤 등장/퇴장
+      if (t > surf.nextToggle) {
+        surf.nextToggle = t + rand(1400, 3200);
+        const pool = surf.swimmers.filter((s) => !s.jumping);
+        if (pool.length) {
+          const s = pool[Math.floor(Math.random() * pool.length)];
+          if (s.visible) hideSwimmer(s);
+          else showSwimmer(s);
+        }
+      }
+      // 가끔 첨벙 — 안 보이는 물고기 중에서
+      if (t > surf.nextJump) {
+        surf.nextJump = t + rand(3500, 8000);
+        const hidden = surf.swimmers.filter((s) => !s.visible && !s.jumping);
+        if (hidden.length) startJump(hidden[Math.floor(Math.random() * hidden.length)]);
+      }
+      for (const s of surf.swimmers) {
+        if (s.jumping) {
+          s.jt += dt;
+          const p = s.jt / s.jdur; // 0..1
+          s.x = s.jx + s.vx * s.jt;
+          const arc = Math.sin(Math.min(1, p) * Math.PI);
+          const y = s.baseY - arc * s.jpeak - s.h * 0.5;
+          const rot = (p - 0.5) * 60;
+          s.el.style.transform = `translate(${s.x}px, ${y}px) rotate(${rot}deg)`;
+          if (p >= 1) {
+            s.jumping = false;
+            splash(s.x, surf.waterY);
+            hideSwimmer(s);
+          }
+        } else if (s.visible) {
+          s.x += s.vx * dt;
+          if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx); }
+          else if (s.x > W - s.w) { s.x = W - s.w; s.vx = -Math.abs(s.vx); }
+          const yy = s.y + Math.sin(t / 900 + s.bob) * 4;
+          s.el.style.transform = `translate(${s.x}px, ${yy}px) scaleX(${s.vx < 0 ? -1 : 1})`;
+        }
+      }
+    }
+    if (window.Ambience) Ambience.frame(t);
+    rafId = requestAnimationFrame(tickSurface);
+  }
+
   return {
-    // drawings: 공개된 그림들 / comments: 전체 댓글 목록
-    render(drawings, comments = []) {
+    // drawings: 공개된 그림들 / comments: 전체 댓글 / opts: { event, surfaceWorld, memoryPool, treasureOpened, onTreasureOpen }
+    render(drawings, comments = [], opts = {}) {
       tank = document.getElementById("tank");
       renderGen += 1;
       const gen = renderGen;
       cancelAnimationFrame(rafId);
+      clearEvents();
+      surfaceMode = false;
+      surf = null;
       tank.innerHTML = "";
       actors = [];
       foods = [];
       W = tank.clientWidth;
       H = tank.clientHeight;
       floorY = H * FLOOR_RATIO;
+
+      document.body.classList.toggle("surface-world", !!opts.surfaceWorld);
+
+      // 보름달 밤 → 바다 윗세상 장면 (별도 경로)
+      if (opts.surfaceWorld && drawings.length) {
+        renderSurface(drawings, comments);
+        return;
+      }
+
       makeBubbles();
 
       // 그림별 댓글 텍스트 모음
@@ -643,6 +973,19 @@ const Aquarium = (() => {
       } else {
         drawings.forEach((d) => addActor(d, commentMap.get(d.id), gen));
       }
+
+      // 오늘의 희귀 이벤트 연출
+      if (opts.event) {
+        const type = opts.event.type;
+        if (type === "submarine") spawnSubmarine();
+        else if (type === "whales") spawnWhalePod();
+        else if (type === "treasure") {
+          const mem = window.AquariumEvents.pickMemory(opts.event.seed, opts.memoryPool || []);
+          spawnTreasure(mem, opts.treasureOpened, opts.onTreasureOpen);
+        }
+        // bottle 은 app.js 가 setBottles 로 관리
+      }
+
       lastTime = 0;
       rafId = requestAnimationFrame(tick);
     },
@@ -658,9 +1001,34 @@ const Aquarium = (() => {
       }
     },
 
+    // 유리병 편지: 수면에 떠다니는 병 (읽을 병 목록 + 작성 가능 여부)
+    setBottles(incoming, composable, handlers) {
+      if (!tank) return;
+      tank.querySelectorAll(".evt-bottle").forEach((el) => el.remove());
+      const make = (kind, onTap) => {
+        const el = document.createElement("div");
+        el.className = "evt-bottle" + (kind === "read" ? " has-msg" : "");
+        el.innerHTML = svg(
+          40, 60,
+          `<rect x="14" y="6" width="12" height="10" rx="2" ${STROKE}/>
+           <path d="M14 16 q-6 6 -6 20 v14 q0 8 12 8 q12 0 12 -8 v-14 q0 -14 -6 -20z" ${STROKE}/>
+           <line x1="12" y1="40" x2="28" y2="40" ${STROKE}/>`,
+          "evt-svg"
+        ).outerHTML;
+        el.style.left = rand(W * 0.12, W * 0.8) + "px";
+        el.style.setProperty("--float", rand(2.4, 4).toFixed(2) + "s");
+        el.addEventListener("click", (e) => { e.stopPropagation(); onTap(); });
+        tank.appendChild(el);
+        return el;
+      };
+      (incoming || []).forEach((b) => make("read", () => handlers.onRead(b)));
+      if (composable) make("write", () => handlers.onWrite());
+    },
+
     stop() {
       savePositions();
       cancelAnimationFrame(rafId);
+      document.body.classList.remove("surface-world");
     },
   };
 })();

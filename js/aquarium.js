@@ -777,8 +777,8 @@ const Aquarium = (() => {
     const ST = 'fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
     return svg(
       600, 400,
-      `<!-- 달: 흰색 (크레이터 없음) -->
-       <circle cx="92" cy="72" r="34" fill="#ffffff" stroke="#cfd4da" stroke-width="2.6"/>
+      `<!-- 달: 흰색 (크레이터 없음), 테두리는 어두운 회색 -->
+       <circle cx="92" cy="72" r="34" fill="#ffffff" stroke="#6b7078" stroke-width="2.8"/>
        <!-- 별(흰색 작은 십자) -->
        <path d="M300 46 l0 8 M296 50 l8 0" ${ST}/>
        <path d="M470 58 l0 6 M467 61 l6 0" ${ST}/>
@@ -924,7 +924,8 @@ const Aquarium = (() => {
         const p = s.jt / s.jdur;
         s.x = s.jx + s.vx * s.jt;
         const arc = Math.sin(Math.min(1, p) * Math.PI);
-        const y = above.waterY - arc * s.jpeak - s.h * 0.5;
+        // sea 컨테이너(수면=상단 0) 기준: 위로 튀어오르면 음수 y → 하늘로 솟음
+        const y = -arc * s.jpeak - s.h * 0.5;
         s.el.style.transform = `translate(${s.x}px, ${y}px) rotate(${(p - 0.5) * 60}deg)`;
         if (p >= 1) { s.jumping = false; splash(s.x, above.waterY); hideSwimmer(s); }
       } else if (s.visible) {

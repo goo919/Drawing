@@ -1157,15 +1157,13 @@ body.full-moon:not(.above-active) #tank::after { opacity: 0.4; }
 .dogam-img {
   padding: 10px;
   border-bottom: 1.5px solid var(--hair);
-  height: clamp(100px, 32vw, 150px);
-  display: grid;
-  place-items: center;
+  height: clamp(104px, 33vw, 156px);
 }
+/* 상자를 꽉 채우되 object-fit 으로 비율 유지 — % max-height 는 그리드/플렉스에서
+   제대로 안 먹어 그림이 주제 텍스트를 덮는 문제가 있었음 */
 .dogam-img img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
 }

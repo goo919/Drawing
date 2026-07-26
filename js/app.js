@@ -28,7 +28,10 @@ const App = (() => {
     comments: [],
     rolloverHour: 6, // 주제가 바뀌는 시각 (KST, 공유 설정)
     modalDrawing: null,
+    tankPicks: null, // 수족관에 풀어둔 그림 id 목록 (공유 설정, null=아직 안 정함)
   };
+
+  const MAX_TANK = 8; // 수족관에 동시에 풀 수 있는 최대 종류
 
   // 유형별 안내 문구 (수족관에서 어떻게 움직이는지)
   const TYPE_LABELS = {
@@ -430,6 +433,38 @@ const App = (() => {
   }
 
   // ---------- 수족관 탭 ----------
+  // 수족관에 실제로 풀려 있는 그림 id 집합 (설정이 없으면 최신 8종을 기본으로)
+  function currentPicks() {
+    const revealed = revealedDrawings();
+    const validIds = new Set(revealed.map((d) => d.id));
+    if (state.tankPicks) {
+      return new Set(state.tankPicks.filter((id) => validIds.has(id)).slice(0, MAX_TANK));
+    }
+    const latest = [...revealed]
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.submittedAt || 0) - (a.submittedAt || 0))
+      .slice(0, MAX_TANK);
+    return new Set(latest.map((d) => d.id));
+  }
+
+  async function toggleTankPick(id) {
+    const picks = currentPicks();
+    if (picks.has(id)) picks.delete(id);
+    else {
+      if (picks.size >= MAX_TANK) {
+        UI.toast(`수족관은 최대 ${MAX_TANK}종까지예요. 하나 빼고 넣어주세요!`);
+        return;
+      }
+      picks.add(id);
+    }
+    state.tankPicks = [...picks];
+    renderDogam(); // 즉시 반영
+    try {
+      await Storage.saveSettings({ tankPicks: state.tankPicks });
+    } catch {
+      UI.toast("수족관 설정 저장에 실패했어요.");
+    }
+  }
+
   function renderAquarium() {
     let list = revealedDrawings();
 
@@ -444,6 +479,11 @@ const App = (() => {
     state.aquariumDate = sel.value;
 
     if (state.aquariumDate !== "all") list = list.filter((d) => d.date === state.aquariumDate);
+    else {
+      // 전체 보기: 도감에서 고른 동물들만 (기본은 최신 8종) → 화면이 정신없지 않게
+      const picks = currentPicks();
+      list = list.filter((d) => picks.has(d.id));
+    }
 
     // ---- 희귀 이벤트 / 보름달 판정 (전체 보기일 때만) ----
     const opts = {};
@@ -547,13 +587,24 @@ const App = (() => {
 
   // ---------- 도감 탭 ----------
   function renderDogam() {
+    const picks = currentPicks();
     Dogam.render(visibleDrawings(), {
       sort: state.dogamSort,
       who: state.dogamWho,
       names: state.names,
       me: state.me,
       isRevealed,
+      picks,
+      maxPicks: MAX_TANK,
+      onTogglePick: toggleTankPick,
     });
+
+    // 수족관 정원 카운터
+    const counter = document.getElementById("tank-count");
+    if (counter) {
+      counter.textContent = `수족관 ${picks.size}/${MAX_TANK}`;
+      counter.classList.toggle("full", picks.size >= MAX_TANK);
+    }
     // 필터의 이름 라벨 갱신
     const sel = document.getElementById("dogam-who");
     sel.options[1].textContent = displayName("A");
@@ -789,6 +840,7 @@ const App = (() => {
     const settings = await Storage.getSettings();
     const rh = Number(settings.rolloverHour);
     state.rolloverHour = Number.isFinite(rh) && rh >= 0 && rh <= 23 ? rh : 6;
+    state.tankPicks = Array.isArray(settings.tankPicks) ? settings.tankPicks.slice(0, MAX_TANK) : null;
     state.todayKey = appDayKey();
     state.drawings = await Storage.listDrawings();
     state.comments = await Storage.listComments();

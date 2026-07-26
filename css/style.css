@@ -651,6 +651,7 @@ input, select { font-family: inherit; font-size: 1rem; color: var(--ink); }
   align-items: center;
   margin-bottom: 10px;
   flex-wrap: wrap;
+  flex: none; /* 도감/수족관 본문이 남은 높이를 모두 차지하도록 */
 }
 .filter-bar label {
   display: flex;
@@ -1127,29 +1128,47 @@ body.full-moon:not(.above-active) #tank::after { opacity: 0.4; }
 /* ================= 도감 ================= */
 /* 카드가 쌓이는 곳이라 그리드 안쪽만 세로 스크롤 (페이지는 고정) */
 .dogam-grid {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 12px 10px;
   align-content: start;
-  padding: 2px 2px 12px;
+  align-items: start; /* 카드가 행 높이에 늘어나 찌그러지지 않게 */
+  padding: 4px 4px 16px;
 }
 
 .dogam-card {
   text-align: left;
-  overflow: hidden;
   padding: 3px;
+  position: relative;
+  /* overflow:hidden 금지 — 그리드 행 높이가 축소되어 카드가 겹쳐 보임 */
 }
 .dogam-card:nth-child(odd) { transform: rotate(0.5deg); }
 .dogam-card:nth-child(even) { transform: rotate(-0.45deg); }
 .dogam-card:active::before { background: var(--faint); }
 
-.dogam-img { padding: 10px; border-bottom: 1.5px solid var(--hair); }
-.dogam-img img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
+/* 이미지 칸에 확정 높이를 줘야 그리드 행 높이가 제대로 계산됨
+   (aspect-ratio + width:100% 조합은 행 높이 산정에 기여하지 못해 카드가 겹쳤음) */
+.dogam-img {
+  padding: 10px;
+  border-bottom: 1.5px solid var(--hair);
+  height: clamp(100px, 32vw, 150px);
+  display: grid;
+  place-items: center;
+}
+.dogam-img img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
 
 .dogam-info { padding: 7px 10px 9px; display: flex; flex-direction: column; }
 .dogam-topic {
@@ -1201,6 +1220,42 @@ body.full-moon:not(.above-active) #tank::after { opacity: 0.4; }
   color: var(--muted);
   padding: 40px 0;
 }
+
+/* 수족관에 풀기/빼기 토글 (도감 카드 위) */
+.dogam-pick {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 2;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 1.5px 1.5px 0 rgba(17, 17, 17, 0.8);
+}
+.dogam-pick.on { background: var(--ink); color: var(--paper); }
+.dogam-pick:disabled { opacity: 0.35; }
+.dogam-pick:active { transform: translate(1px, 1px); box-shadow: none; }
+
+/* 도감 카드에서 방류 중인 그림 표시 */
+.dogam-card.picked::before { background: var(--faint); }
+
+/* 수족관 정원 카운터 */
+.tank-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tank-count.full { background: var(--ink); color: var(--paper); }
 
 /* ================= 모달 ================= */
 .modal {

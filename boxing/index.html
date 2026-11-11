@@ -983,12 +983,26 @@ function wire(c){
     net.open = true; net.lastSeen = Date.now(); net.status = "";
     netSend({t:"hello", name:nick});
     clearInterval(pingIv);
-    pingIv = setInterval(function(){ netSend({t:"ping"}); if(Date.now()-net.lastSeen > 12000) netDropped(); }, 3000);
+    pingIv = setInterval(function(){ netSend(pingMsg()); if(Date.now()-net.lastSeen > 12000) netDropped(); }, 3000);
     renderLobby();
   });
   c.on("data", function(d){ if(conn === c) onData(d); });
   c.on("close", function(){ if(conn === c) netDropped(); });
   c.on("error", function(){ if(conn === c) netDropped(); });
+}
+function pingMsg(){
+  // 방장은 현재 문제와 마지막 판정을 같이 보내서, 중간에 빠진 신호가 있어도 상대가 따라오게 한다
+  var m = {t:"ping"};
+  if(net.role === "host" && S && S.pvp && !S.over){
+    if(S.q && !S.resolved) m.q = {n:S.n, a:S.q.a, b:S.q.b};
+    if(S.lastRes) m.res = S.lastRes;
+  }
+  return m;
+}
+function guestRes(d){
+  if(net.role === "guest" && S && S.pvp && d && d.n === S.n && Array.isArray(d.hp) && Array.isArray(d.sp))
+    applyRes(d.w === 1 ? true : d.w === 0 ? false : null, num(d.dmg,0,40), String(d.kind),
+             num(d.hp[1],-99,PLAYER_HP), num(d.hp[0],-99,PLAYER_HP), num(d.sp[1],0,SP_MAX), num(d.sp[0],0,SP_MAX), num(d.combo,0,999));
 }
 function noPeer(){
   if(window.Peer) return false;
@@ -1019,7 +1033,7 @@ function joinRoom(code){
   var p = peer = new window.Peer();
   p.on("open", function(){
     if(peer !== p) return;
-    wire(p.connect(PREFIX+code, {reliable:true}));
+    wire(p.connect(PREFIX+code, {reliable:true, serialization:"json"}));
     setTimeout(function(){ if(peer === p && !net.open) netClose("방에 연결하지 못했어요. 방 번호를 확인하거나, 와이파이/데이터를 바꿔서 다시 해 보세요."); }, 12000);
   });
   p.on("disconnected", function(){ try{ if(peer === p && !p.destroyed) p.reconnect(); }catch(e){} });
@@ -1036,10 +1050,15 @@ function onData(d){
     case "start": if(net.role === "guest"){ if(Array.isArray(d.tables)) net.tables = d.tables.map(function(n){ return num(n,2,9); }); startPvp(); } break;
     case "q": if(net.role === "guest" && S && S.pvp && !S.over) applyQ(num(d.n,1,99999), num(d.a,2,9), num(d.b,1,9)); break;
     case "ans": if(net.role === "host" && S && S.pvp && d.n === S.n) hostResolve(1, num(d.ms,0,60000)); break;
-    case "res":
-      if(net.role === "guest" && S && S.pvp && d.n === S.n && Array.isArray(d.hp) && Array.isArray(d.sp))
-        applyRes(d.w === 1 ? true : d.w === 0 ? false : null, num(d.dmg,0,40), String(d.kind),
-                 num(d.hp[1],-99,PLAYER_HP), num(d.hp[0],-99,PLAYER_HP), num(d.sp[1],0,SP_MAX), num(d.sp[0],0,SP_MAX), num(d.combo,0,999));
+    case "res": guestRes(d); break;
+    case "ping":
+      if(net.role === "guest"){
+        if(d.q && typeof d.q === "object"){
+          if(!S || !S.pvp || S.over) startPvp();
+          if(num(d.q.n,1,99999) > S.n) applyQ(num(d.q.n,1,99999), num(d.q.a,2,9), num(d.q.b,1,9));
+        }
+        if(d.res) guestRes(d.res);
+      }
       break;
     case "again": if(net.role === "host" && (!S || !S.pvp || S.over)) hostStart(); break;
   }
@@ -1050,7 +1069,7 @@ function renderLobby(){
   $("net-msg").textContent = net.status;
   if(live){
     if(net.role === "host") t = net.open ? (net.oppName||"친구")+" 입장! 단을 고르고 시작하세요." : "방 번호 "+net.code+" · 친구를 기다리는 중";
-    else t = net.open ? "방 "+net.code+" 입장 완료! 방장이 시작하기를 기다려요." : "방 "+net.code+" 찾는 중…";
+    else t = net.open ? (net.oppName ? net.oppName+"의 방 "+net.code+" 입장 완료!" : "방 "+net.code+" 입장 완료!")+" 방장이 시작하기를 기다려요." : "방 "+net.code+" 찾는 중…";
   }
   $("net-state").textContent = t;
   $("net-start").hidden = !(net.role === "host" && net.open);
@@ -1109,7 +1128,11 @@ function pvpAnswer(val){
   if(val === q.ans){
     $("slot").className = "slot right"; $("msg").textContent = "정답! 누가 더 빨랐을까…";
     var ms = performance.now()-S.t0;
-    if(net.role === "host") hostResolve(0, ms); else netSend({t:"ans", n:n, ms:Math.round(ms)});
+    if(net.role === "host") hostResolve(0, ms);
+    else (function resend(){
+      if(!S || !S.pvp || S.n !== n || S.resolved) return;
+      netSend({t:"ans", n:n, ms:Math.round(ms)}); later(resend, 1000);
+    })();
   }else{
     S.missed[q.key] = (S.missed[q.key]||0)+1;
     $("slot").className = "slot wrong"; $("msg").textContent = "앗, "+val+"은(는) 아니에요. 다시!";
@@ -1128,7 +1151,8 @@ function hostResolve(w, ms){
     if(sp[w] >= SP_MAX){ kind = "super"; dmg = 30; sp[w] = 0; } else sp[w]++;
     hp[1-w] -= dmg;
   }else S.streak = [0,0];
-  netSend({t:"res", n:S.n, w:w, dmg:dmg, kind:kind, hp:hp, sp:sp, combo:combo});
+  S.lastRes = {t:"res", n:S.n, w:w, dmg:dmg, kind:kind, hp:hp, sp:sp, combo:combo};
+  netSend(S.lastRes);
   applyRes(w === 0 ? true : w === 1 ? false : null, dmg, kind, hp[0], hp[1], sp[0], sp[1], combo);
   if(hp[0] > 0 && hp[1] > 0) later(hostNext, w < 0 ? 2400 : (kind === "super" ? 1750 : 1350));
 }
